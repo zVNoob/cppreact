@@ -11,7 +11,7 @@ namespace cppreact {
     uint8_t b = 0;
     uint8_t a = 255;
   };
-  enum {RECT_RENDER_ID};
+  enum {RECT_RENDER_ID = 1000};
   class rect : public component {
     color c;
     protected:

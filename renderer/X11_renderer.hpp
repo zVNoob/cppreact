@@ -29,7 +29,7 @@ public:
         0, 
         WhitePixel(_x11_Display, _x11_Screen), 
         BlackPixel(_x11_Display, _x11_Screen));
-      XSelectInput(_x11_Display, _x11_Window, ExposureMask | StructureNotifyMask);
+      XSelectInput(_x11_Display, _x11_Window, ExposureMask | StructureNotifyMask | PointerMotionMask);
       //Show window
       XMapWindow(_x11_Display, _x11_Window);
       XGCValues XGCValues_temp;
@@ -53,22 +53,32 @@ protected:
     unsigned long _encode_RGB(int r, int g, int b) {
 	    return b + (g<<8) + (r<<16);
     }
-    bool on_loop() override {
-      XEvent e;
-      XNextEvent(_x11_Display, &e);
-      switch (e.type) {
-        case ConfigureNotify:
-        if (_x11_Width == e.xconfigure.width && _x11_Height == e.xconfigure.height) break;
-        _x11_Width = e.xconfigure.width;
-        _x11_Height = e.xconfigure.height;
-        set_size(_x11_Width, _x11_Height);
-        case Expose:
-        render();
+    void render() {
+        renderer::render();
         XdbeSwapInfo swap_info;
         swap_info.swap_window = _x11_Window;
         swap_info.swap_action = XdbeCopied;
         XdbeSwapBuffers(_x11_Display, &swap_info, 1);
         XFlush(_x11_Display);
+
+    }
+    bool on_loop() override {
+      XEvent e;
+      XNextEvent(_x11_Display, &e);
+      switch (e.type) {
+        case MotionNotify:
+        set_pointer(e.xmotion.x, e.xmotion.y);
+        render();
+        break;
+        case ConfigureNotify:
+        if (_x11_Width == e.xconfigure.width && _x11_Height == e.xconfigure.height) break;
+        _x11_Width = e.xconfigure.width;
+        _x11_Height = e.xconfigure.height;
+        set_size(_x11_Width, _x11_Height); 
+        render();
+        break;
+        case Expose:
+        render();
         break;
       }
       return true;

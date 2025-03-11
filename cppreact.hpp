@@ -3,5 +3,5 @@
 #include "component/component.hpp"
 #include "component/rect.hpp"
 #include "component/wrap.hpp"
-#include "component/function.hpp"
+#include "component/func.hpp"
 
