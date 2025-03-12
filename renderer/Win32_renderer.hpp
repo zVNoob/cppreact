@@ -1,8 +1,11 @@
+#include <cstdint>
 #include <initializer_list>
 #include <minwindef.h>
 #include <string>
 #include <windows.h>
+#include <windowsx.h>
 #include <wingdi.h>
+#include <winuser.h>
 #include "renderer.hpp"
 
 namespace cppreact {
@@ -15,13 +18,29 @@ namespace cppreact {
   HDC draw_hdc;
   PAINTSTRUCT ps;
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    Win32_renderer* obj = reinterpret_cast<Win32_renderer*>(lParam);
+    Win32_renderer* obj = 0;
+    if (msg == WM_NCCREATE) {
+        CREATESTRUCT *cs = (CREATESTRUCT*) lParam;
+        obj = reinterpret_cast<Win32_renderer*>(cs->lpCreateParams);
+
+        SetLastError(0);
+        if (SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR) obj) == 0) {
+            if (GetLastError() != 0)
+                return FALSE;
+        }
+    } else {
+        obj = reinterpret_cast<Win32_renderer*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    }
     switch (msg) {
     case WM_PAINT:
       // Handle WM_PAINT message
-      obj->draw_hdc = BeginPaint(obj->hwnd, &obj->ps);
-      obj->render();
-      EndPaint(obj->hwnd,&obj->ps);
+      obj->on_paint();
+      break;
+    case WM_SIZE:
+      obj->on_size();
+      break;
+    case WM_MOUSEMOVE:
+      obj->on_mousemove(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
       break;
     case WM_DESTROY:
       // Handle WM_DESTROY message
@@ -30,11 +49,30 @@ namespace cppreact {
     default:
       return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-    return 0;
+    return TRUE;
+  }
+  void on_mousemove(uint16_t x,uint16_t y) {
+    set_pointer(x, y);
+    RECT RcClient;
+    GetClientRect(hwnd,&RcClient);
+    InvalidateRect(hwnd,&RcClient,FALSE);
+
+  }
+  void on_size() {
+    RECT RcClient;
+    GetClientRect(hwnd,&RcClient);
+    set_size(RcClient.right - RcClient.left,RcClient.bottom - RcClient.top);
+    InvalidateRect(hwnd,&RcClient,FALSE);
+  }
+  void on_paint() {
+    draw_hdc = BeginPaint(hwnd, &ps);
+    render();
+    EndPaint(hwnd,&ps);
   }
   public:
   Win32_renderer(int width,int height,std::string title = "",std::initializer_list<component*> children = {}) :
-    renderer(children),width(width),height(height),title(title) {
+    renderer(children,{255,255,255,255}),width(width),height(height),title(title) {
+      set_size(width,height);
       WNDCLASSEX wc = {0};
       wc.cbSize = sizeof(WNDCLASSEX);
       wc.style = 0;
@@ -49,7 +87,6 @@ namespace cppreact {
       wc.lpszClassName = "Win32_renderer";
       wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
       RegisterClassEx(&wc);
-
       hwnd = CreateWindowEx(
       0, "Win32_renderer", title.c_str(),
       WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
@@ -72,11 +109,12 @@ namespace cppreact {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
       return 1;
-    } 
+    }
     void on_rect(color c, bounding_box box) override {
-      SetDCPenColor(draw_hdc, RGB(c.r,c.g,c.b));
-      SetDCBrushColor(draw_hdc, RGB(c.r,c.g,c.b));
-      Rectangle(draw_hdc,box.x,box.y,box.x+box.width,box.y+box.height);
+      HBRUSH br =  CreateSolidBrush(RGB(c.r,c.g,c.b));
+      RECT rect = {box.x, box.y, box.x +box.width, box.y + box.height};
+      FillRect(draw_hdc,&rect,br);
+      DeleteObject(br);
     };
   };
 }

@@ -13,7 +13,7 @@ namespace cppreact {
     uint16_t height;
   };
   struct hover_create_data {
-  std::function<bool(hover_position)> callback;
+  std::function<void(hover_position)> callback;
     component* object;
     hover_create_data** ref;
     bool operator==(hover_create_data& other) { 
@@ -25,7 +25,7 @@ namespace cppreact {
     bounding_box old_box = {0,0,0,0};
     hover_create_data data;
     public:
-    hover(std::function<bool(hover_position)> callback,
+    hover(std::function<void(hover_position)> callback,
       layout_config config,std::initializer_list<component*> children = {}) :
       component(config,children),data({callback,this}) {}
     ~hover() {

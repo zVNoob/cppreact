@@ -3,14 +3,15 @@
 #include "../component/component.hpp"
 #include "../component/rect.hpp"
 #include "../component/hover.hpp"
+#include "../component/func.hpp"
 #include <cstdint>
-#include <initializer_list>
 #include <list>
 #include <map>
 #include <set>
 
 namespace cppreact {
   class renderer : protected component {
+  // Hover handling
     struct hover_data {
       hover_create_data* data;
       uint16_t x1,x2,y1,y2;
@@ -52,35 +53,24 @@ namespace cppreact {
       }
       return {nullptr,nullptr,nullptr};
     }
-    public:
-    renderer(std::initializer_list<component*> children,color clear_color = {0,0,0,255}) :
-      component({},children),clear_color(clear_color) {
-    }
-    virtual ~renderer() { 
-      for (auto& i:hover_event_data.data) {
-        if (i.data->ref) i.data->ref = 0;
+    // Render optimization & component change handling
+    std::list<update_register_data*> update_data;
+    void update_handle() {
+      for (auto i = update_data.begin();i != update_data.end();) {
+        auto t = *i;
+        if (t) {
+          if (t->changed) change_element.insert(t->obj);
+          t->changed = false;
+          i++;
+        } else {
+          update_data.erase(i++);
+        }
       }
-    } 
-    void run() {
-      while (on_loop());
     }
-    void (*on_pointer_change)(uint16_t x,uint16_t y) = 0;
-    protected:
-    void set_size(uint16_t width,uint16_t height) {
-      config.sizing = {FIXED(width),FIXED(height)}; 
-    }
-    void set_pointer(uint16_t x,uint16_t y) {
-      if (on_pointer_change) on_pointer_change(x,y);
-      auto hover = hover_get(x,y);
-      if (hover.object) {
-        hover_position temp = {
-          static_cast<uint16_t>(x - hover.object->box.x),
-          static_cast<uint16_t>(y - hover.object->box.y),
-          hover.object->box.width,
-          hover.object->box.height,
-        };
-        if (hover.callback(temp)) change_element.insert(hover.object);
-      }
+    void update_add(update_register_data* data) {
+      update_data.push_back(data);
+      auto i = --update_data.end();
+      (*i)->ref = &*i;
     }
     render_commands reduced_layout() {
       for (auto i = change_element.begin();i != change_element.end();) {
@@ -102,18 +92,49 @@ namespace cppreact {
       render_commands a;
       for (auto& i:change_element) {
         a = i->layout();
-        on_rect(clear_color,a.clearing_box);
+        on_clear(a.clearing_box);
         result.commands.insert(result.commands.end(),a.commands.begin(),a.commands.end());
       }
       return result;
     }
-    void render(bool redraw_all = false) {
-      render_commands a;
-      if (redraw_all) {
-        a = layout();
-        on_rect(clear_color,a.clearing_box);
+
+    public:
+  // Public API
+    renderer(std::initializer_list<component*> children,color clear_color = {0,0,0,255}) :
+      component({},children),clear_color(clear_color) {
+    }
+    virtual ~renderer() { 
+      for (auto& i:hover_event_data.data) if (i.data)
+        if (i.data->ref) i.data->ref = 0;
+      for (auto& i:update_data) if (i) if (i->ref) i->ref = 0;
+    } 
+    void run() {
+      while (on_loop());
+    }
+    void (*on_pointer_change)(uint16_t x,uint16_t y) = 0;
+
+    protected:
+  // Protected API
+    void set_size(uint16_t width,uint16_t height) {
+      config.sizing = {SIZING_FIXED(width),SIZING_FIXED(height)};
+      change_element.insert(this);
+    }
+    void set_pointer(uint16_t x,uint16_t y) {
+      if (on_pointer_change) on_pointer_change(x,y);
+      auto hover = hover_get(x,y);
+      if (hover.object) {
+        hover_position temp = {
+          static_cast<uint16_t>(x - hover.object->box.x),
+          static_cast<uint16_t>(y - hover.object->box.y),
+          hover.object->box.width,
+          hover.object->box.height,
+        };
+        hover.callback(temp);
       }
-      else a = reduced_layout();
+    }
+    void render() {
+      update_handle();
+      render_commands a = reduced_layout();
       change_element.clear();
       for (auto& i:a.commands) {
         switch (i.id) {
@@ -123,12 +144,18 @@ namespace cppreact {
         case HOVER_CREATE_ID:
         hover_add(i.box, reinterpret_cast<hover_create_data*>(i.data));
         break;
+        case UPDATE_REGISTER_ID:
+        update_add(reinterpret_cast<update_register_data*>(i.data));
+        break;
         }
       }  
     }
     
     virtual bool on_loop() = 0;
     virtual void on_rect(color c,bounding_box box) = 0;
+    virtual void on_clear(bounding_box box) {
+      on_rect(clear_color,box);
+    }
   };
 }
 #endif

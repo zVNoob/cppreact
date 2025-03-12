@@ -7,6 +7,7 @@
 #include <X11/extensions/dbe.h>
 #include <cstdint>
 #include <initializer_list>
+#include <string>
 
 namespace cppreact {
   class X11_renderer : public renderer {
@@ -19,10 +20,11 @@ namespace cppreact {
   GC _x11_GC_local;
   Pixmap current_buffer;
   Pixmap back_buffer;
+  std::string title;
   int t = 100;
 public:
-    X11_renderer(uint16_t width,uint16_t height,std::initializer_list<component*> children):
-    renderer(children),_x11_Width(width),_x11_Height(height) {
+    X11_renderer(uint16_t width,uint16_t height,std::string title,std::initializer_list<component*> children):
+    renderer(children),_x11_Width(width),_x11_Height(height), title(title) {
       _x11_Display = XOpenDisplay(0);
       _x11_Screen = DefaultScreen(_x11_Display);
       _x11_Window = XCreateSimpleWindow(_x11_Display,
@@ -44,7 +46,7 @@ public:
       XFlush(_x11_Display);
       current_buffer = XCreatePixmap(_x11_Display, _x11_Window, 4096, 4096, DefaultDepth(_x11_Display, _x11_Screen));
       back_buffer = XCreatePixmap(_x11_Display, _x11_Window, 4096, 4096, DefaultDepth(_x11_Display, _x11_Screen));
-      render(true);
+      render();
       XCopyArea(_x11_Display, back_buffer, current_buffer, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
       XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
     };
@@ -59,8 +61,8 @@ protected:
     unsigned long _encode_RGB(int r, int g, int b) {
 	    return b + (g<<8) + (r<<16);
     }
-    void render(bool redraw_all = false) {
-        renderer::render(redraw_all);
+    void render() {
+        renderer::render();
         XFlush(_x11_Display);
 
     }
@@ -79,7 +81,7 @@ protected:
         _x11_Width = e.xconfigure.width;
         _x11_Height = e.xconfigure.height;
         set_size(_x11_Width, _x11_Height); 
-        render(true);
+        render();
         XCopyArea(_x11_Display, back_buffer, current_buffer, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         break;
@@ -87,7 +89,7 @@ protected:
         XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         break;
       }
-      return t--;
+      return true;
     }
     void on_rect(color c, bounding_box box) override {
       XSetForeground(_x11_Display, _x11_GC_local, _encode_RGB(c.r, c.g, c.b));

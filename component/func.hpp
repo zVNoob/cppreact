@@ -9,6 +9,20 @@
 
 namespace cppreact {
   class state_system {
+    bool* changed_flag = 0;
+    template<typename T>
+    class property {
+      T* data;
+      state_system* owner;
+      public:
+      operator T() {return *data;}
+      T& operator=(T value) const {
+        *data = value;
+        if (owner->changed_flag) *(owner->changed_flag) = true;
+        return *data;
+      }
+      property(T* data,state_system* owner) : data(data),owner(owner) {}
+    };
     template<typename T> 
     class _state_list {
       std::list<T> data;
@@ -17,39 +31,50 @@ namespace cppreact {
       _state_list() : 
         pos(data.end()) {}
       void reset() {pos = data.begin();}
-      T& get(T& inp) {
+      property<T> get(T& inp,state_system* owner) {
         if (pos == data.end()) {
           data.push_back(inp);
           pos = --data.end();
         }
-        return *(pos++);
+        return property<T>(&*(pos++),owner);
       }
     };
     std::unordered_map<std::type_index, std::pair<bool,std::any>> _internal_data;
     public:
-    state_system() {};
+    state_system(bool* changed_flag = 0) : changed_flag(changed_flag) {};
     ~state_system() {
     }
     template<typename T> 
-    T& get(T value = T()) {
+    property<T> get(T value = T()) {
       auto current = _internal_data.insert({std::type_index(typeid(T)),{0,_state_list<T>()}}).first;
       _state_list<T>& ptr = std::any_cast<_state_list<T>&>(current->second.second);
       if (current->second.first == 0) {
         ptr.reset();
         current->second.first = 1;
       }
-      return ptr.get(value);
+      return ptr.get(value,this);
     }
     void reset() {for (auto&i:_internal_data) i.second.first = 0;}
   };
 
+  struct update_register_data {
+    bool changed;
+    component* obj;
+    update_register_data** ref;
+    ~update_register_data() {
+      if (ref) *ref = 0;
+    }
+  };
+  enum {UPDATE_REGISTER_ID = 10};
+
   class func : public component {
     public:
     std::function<component*(state_system&)> f;
+    update_register_data data;
     state_system state;
     public:
     func(std::function<component*(state_system&)> f) : 
-      f(f),component({}) {
+      f(f),component({}),data({false,this,nullptr}),state(&data.changed) {
     }
     protected:
     void on_init_layout() override {
@@ -61,6 +86,10 @@ namespace cppreact {
       config = k_tree.child_begin->config;
       config.padding = {0,0,0,0};
       config.child_gap = 0;
+    }
+    std::list<render_command> on_layout() override {
+      if (data.ref == 0) return {{.box = box,.id = UPDATE_REGISTER_ID,.data = &data}};
+      return {};
     }
   };
 }

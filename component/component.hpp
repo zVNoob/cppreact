@@ -6,7 +6,11 @@
 #include <cstdint>
 #include <initializer_list>
 #include <list>
-#include <sys/types.h>
+
+#ifdef DEBUG
+#include <stdexcept>
+#endif
+
 namespace cppreact {
   // Layout Sizing API
   enum _LayoutSizingMode {_FIT,_GROW,_FIXED};
@@ -22,17 +26,17 @@ namespace cppreact {
     _layout_sizing_axis x;
     _layout_sizing_axis y;
   };
-  inline _layout_sizing_axis FIT() {return {_FIT,0,UINT16_MAX};};
-  inline _layout_sizing_axis FIT(uint16_t min,uint16_t max) {return {_FIT,min,max};};
-  inline _layout_sizing_axis FIXED(uint16_t x) {return {_FIXED,x,x};};
-  inline _layout_sizing_axis GROW(float_t percent = 1) {return {_GROW,0,UINT16_MAX,percent};};
-  inline _layout_sizing_axis GROW(uint16_t min,uint16_t max,float_t percent = 1) {return {_GROW,min,max,percent};};
+  inline _layout_sizing_axis SIZING_FIT() {return {_FIT,0,UINT16_MAX};};
+  inline _layout_sizing_axis SIZING_FIT(uint16_t min,uint16_t max) {return {_FIT,min,max};};
+  inline _layout_sizing_axis SIZING_FIXED(uint16_t x) {return {_FIXED,x,x};};
+  inline _layout_sizing_axis SIZING_GROW(float_t percent = 1) {return {_GROW,0,UINT16_MAX,percent};};
+  inline _layout_sizing_axis SIZING_GROW(uint16_t min,uint16_t max,float_t percent = 1) {return {_GROW,min,max,percent};};
 
   enum _LayoutDirection {LEFT_TO_RIGHT,TOP_TO_BOTTOM};
   enum _LayoutAlignmentX {XLEFT,XCENTER,XRIGHT};
   enum _LayoutAlignmentY {YTOP,YCENTER,YBOTTOM};
   struct layout_config {
-    _layout_sizing sizing = {FIT(),FIT()};
+    _layout_sizing sizing = {SIZING_FIT(),SIZING_FIT()};
     struct {
       uint16_t left = 0;
       uint16_t right = 0;
@@ -137,7 +141,15 @@ namespace cppreact {
               std::initializer_list<component*> children = std::initializer_list<component*>()) :
       config(config)
     {
-      for (auto i : children) push_back(i);
+      for (auto i : children) {
+        if (i == nullptr)
+#ifdef DEBUG
+          throw std::runtime_error("Children cannot be nullptr");
+#else
+          continue;
+#endif
+        push_back(i);
+      }
     }
     virtual ~component() {
       // detach itself from tree
@@ -181,7 +193,6 @@ namespace cppreact {
       } else on_fit_y(false); 
     }
     virtual void on_child_grow_along() {
-      // WARN: Grow the size of child, not itself
       if (config.direction == LEFT_TO_RIGHT) on_grow_x_along();
       else on_grow_y_along();
     }
@@ -190,7 +201,6 @@ namespace cppreact {
       else on_grow_x_across();
     }
     virtual void on_child_position() {
-      // WARN: Here we calulate the position of child, not itself
       if (config.direction == LEFT_TO_RIGHT) {
         on_pos_x_along();
         on_pos_y_across();
