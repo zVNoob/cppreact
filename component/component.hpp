@@ -86,10 +86,11 @@ namespace cppreact {
           if (cur->k_tree.child_begin) cur = cur->k_tree.child_begin;
           else { 
             while (cur->k_tree.next_sibling == 0) 
-              if (cur->k_tree.parent) cur = cur->k_tree.parent; 
+              if (cur->k_tree.parent && cur != this) cur = cur->k_tree.parent; 
               else break;
             cur = cur->k_tree.next_sibling;
           }
+          if (cur == this) break;
         }
       }
 
@@ -104,6 +105,7 @@ namespace cppreact {
           // Calculate
           cur->on_fit_along();
           // Move to next component
+          if (cur == this) break;
           if (cur->k_tree.next_sibling) {
             cur = cur->k_tree.next_sibling;
             while (cur->k_tree.child_begin) cur = cur->k_tree.child_begin;
@@ -162,7 +164,7 @@ namespace cppreact {
     bounding_box box;
   protected:
     virtual void on_init_layout() {
-      box = {0,0,0,0};
+      box = {box.x,box.y,0,0};
     }
     virtual void on_fit_along() {
     // WARN: Fitting DO NOT respect the max value

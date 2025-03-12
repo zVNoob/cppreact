@@ -25,6 +25,7 @@ namespace cppreact {
     }
     void on_child_position() override {
       if (config.direction == LEFT_TO_RIGHT) on_child_position_left_to_right();
+      else on_child_position_top_to_bottom();
     }
   private:
     inline void on_child_position_left_to_right() {

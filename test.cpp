@@ -24,14 +24,15 @@ int main() {
                 auto& r = s.get<uint8_t>(200);
                 auto& g = s.get<uint8_t>(200);
                 auto& b = s.get<uint8_t>(200);
+                auto& a = s.get<uint8_t>(255);
                 return new hover([&](hover_position p){
                                     r = rand();
                                     g = rand();
                                     b = rand();
-                                    cout << p.x <<  ' ' << p.y << ' ' << p.width << ' ' << p.height << endl;
+                                    cout << p.x << ' ' << p.y << endl;
                                     return true;
                                   },{},{
-                  new rect({r,g,b},{.sizing = {FIXED(50),FIXED(50)}})
+                  new rect({&r,&g,&b,&a},{.sizing = {FIXED(50),FIXED(50)}})
                 });
                 }),
               });
