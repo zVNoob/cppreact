@@ -14,15 +14,27 @@ namespace cppreact {
   int width,height;
   std::string title;
   HWND hwnd;
-  HDC hdc;
   HDC draw_hdc;
+  struct {
+    HDC hdc;
+    HBITMAP hbm;
+    uint16_t width;
+    uint16_t height;
+    bool inited = false;
+  } backbuffer;
   PAINTSTRUCT ps;
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     Win32_renderer* obj = 0;
     if (msg == WM_NCCREATE) {
         CREATESTRUCT *cs = (CREATESTRUCT*) lParam;
         obj = reinterpret_cast<Win32_renderer*>(cs->lpCreateParams);
+        HDC hdc = GetDC(hwnd);
+        obj->backbuffer.hbm = CreateCompatibleBitmap(hdc, 4096,4096);
 
+        obj->backbuffer.hdc = CreateCompatibleDC(hdc);
+        ReleaseDC(hwnd, hdc);
+        SelectObject(obj->backbuffer.hdc, obj->backbuffer.hbm);
+        DeleteObject(obj->backbuffer.hbm);
         SetLastError(0);
         if (SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR) obj) == 0) {
             if (GetLastError() != 0)
@@ -41,6 +53,8 @@ namespace cppreact {
       break;
     case WM_MOUSEMOVE:
       obj->on_mousemove(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+      break;
+    case WM_ERASEBKGND:
       break;
     case WM_DESTROY:
       // Handle WM_DESTROY message
@@ -65,8 +79,9 @@ namespace cppreact {
     InvalidateRect(hwnd,&RcClient,FALSE);
   }
   void on_paint() {
-    draw_hdc = BeginPaint(hwnd, &ps);
     render();
+    draw_hdc = BeginPaint(hwnd, &ps);
+    BitBlt(draw_hdc, 0, 0, width, height, backbuffer.hdc, 0, 0, SRCCOPY);
     EndPaint(hwnd,&ps);
   }
   public:
@@ -92,11 +107,9 @@ namespace cppreact {
       WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
       width, height, NULL, NULL, GetModuleHandle(NULL), this);
 
-      hdc = GetDC(hwnd);
       ShowWindow(hwnd, SW_SHOW);
     }
     ~Win32_renderer() {
-      ReleaseDC(hwnd, hdc);
       DestroyWindow(hwnd);
       UnregisterClass("Win32_renderer", GetModuleHandle(NULL));
     }
@@ -113,7 +126,7 @@ namespace cppreact {
     void on_rect(color c, bounding_box box) override {
       HBRUSH br =  CreateSolidBrush(RGB(c.r,c.g,c.b));
       RECT rect = {box.x, box.y, box.x +box.width, box.y + box.height};
-      FillRect(draw_hdc,&rect,br);
+      FillRect(backbuffer.hdc,&rect,br);
       DeleteObject(br);
     };
   };
