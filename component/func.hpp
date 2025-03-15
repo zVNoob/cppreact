@@ -57,20 +57,20 @@ namespace cppreact {
     void reset() {for (auto&i:_internal_data) i.second.first = 0;}
   };
 
-  struct update_register_data {
+  struct dynamic_register_data {
     bool changed;
     component* obj;
-    update_register_data** ref;
-    ~update_register_data() {
+    dynamic_register_data** ref;
+    ~dynamic_register_data() {
       if (ref) *ref = 0;
     }
   };
-  enum {UPDATE_REGISTER_ID = 10};
+  enum {DYNAMIC_REGISTER_ID = 10};
 
   class func : public component {
     public:
     std::function<component*(state_system&)> f;
-    update_register_data data;
+    dynamic_register_data data;
     state_system state;
     public:
     func(std::function<component*(state_system&)> f) : 
@@ -88,8 +88,11 @@ namespace cppreact {
       config.child_gap = 0;
     }
     std::list<render_command> on_layout() override {
-      if (data.ref == 0) return {{.box = box,.id = UPDATE_REGISTER_ID,.data = &data}};
-      return {};
+      std::list<render_command> res;
+      if (data.ref == 0) res.push_back({.box = box,.id = DYNAMIC_REGISTER_ID,.data = &data});
+      std::list<render_command> temp = std::move(component::on_layout());
+      res.insert(res.end(),temp.begin(),temp.end());
+      return res;
     }
   };
 }

@@ -17,7 +17,10 @@ namespace cppreact {
     color c;
     protected:
     std::list<render_command> on_layout() override {
-      return {{.box = box,.id = RECT_RENDER_ID,.data = &c}};
+      std::list<render_command> res = {{.box = box,.id = RECT_RENDER_ID,.data = &c}};
+      std::list<render_command> temp = std::move(component::on_layout());
+      res.insert(res.end(),temp.begin(),temp.end());
+      return res;
     }
     public:
     rect(color col,

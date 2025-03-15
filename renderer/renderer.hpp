@@ -2,7 +2,7 @@
 #define _CPPREACT_RENDERER_HPP
 #include "../component/component.hpp"
 #include "../component/rect.hpp"
-#include "../component/hover.hpp"
+#include "../component/button.hpp"
 #include "../component/func.hpp"
 #include <cstdint>
 #include <list>
@@ -12,50 +12,72 @@
 namespace cppreact {
   class renderer : protected component {
   // Hover handling
-    struct hover_data {
-      hover_create_data* data;
-      uint16_t x1,x2,y1,y2;
-    };
-    struct {
-      std::list<hover_data> data;
-      std::map<uint16_t,std::list<hover_data>::iterator> x;
-      std::map<uint16_t,std::list<hover_data>::iterator> y;
-    } hover_event_data;
-    std::set<component*> change_element;
-    color clear_color;
-    void hover_add(bounding_box box,hover_create_data* data) {
-      hover_event_data.data.push_back({
-        data,
-        box.x,
-        uint16_t(box.x + box.width),
-        box.y,
-        uint16_t(box.y + box.height)});
-      hover_event_data.x[box.x+box.width] = --hover_event_data.data.end();
-      hover_event_data.y[box.y+box.height] = --hover_event_data.data.end();
-      data->ref = &(--hover_event_data.data.end())->data;
+    typedef std::list<button_create_data*> pointer_ev_list;
+    typedef std::map<uint16_t,pointer_ev_list> pointer_ev_y1;
+    typedef std::map<uint16_t,pointer_ev_y1> pointer_ev_x1;
+    typedef std::map<uint16_t,pointer_ev_x1> pointer_ev_y2;
+    typedef std::map<uint16_t,pointer_ev_y2> pointer_ev_x2;
+    pointer_ev_x2 button_map;
+    void button_add(bounding_box box,button_create_data* data) {
+      auto& temp = button_map[box.x + box.width][box.y + box.height][box.x][box.y];
+      temp.push_back(data);
+      data->ref = &*(--temp.end());
     }
-    hover_create_data hover_get(uint16_t x,uint16_t y) {
-      auto xtmp = hover_event_data.x.lower_bound(x);
-      if (xtmp == hover_event_data.x.end()) return {nullptr,nullptr,nullptr};
-      auto xit = xtmp->second;
-      auto ytmp = hover_event_data.y.lower_bound(y);
-      if (ytmp == hover_event_data.y.end()) return {nullptr,nullptr,nullptr};
-      auto yit = ytmp->second;
-      if (xit->x1 <= x && yit->y1 <= y && xit->x2 >= x && yit->y2 >= y) {
-        if (xit->data == yit->data) {
-          if (xit->data) return *xit->data;
-          else {
-            hover_event_data.x.erase(xit->x2);
-            hover_event_data.y.erase(xit->y2);
-            hover_event_data.data.erase(xit);
+    void pointer_ev_run(uint16_t x,uint16_t y,button_type type,int16_t state) {
+      for (auto ix2 = button_map.begin();ix2 != button_map.end();) {
+        auto& x2 = ix2->second;
+        for (auto iy2 = x2.begin();iy2 != x2.end();) {
+          auto& y2 = iy2->second;
+          for (auto ix1 = y2.begin();ix1 != y2.end();) {
+            auto& x1 = ix1->second;
+            for (auto iy1 = x1.begin();iy1 != x1.end();) {
+              auto& y1 = iy1->second;
+              for (auto i = y1.begin();i != y1.end();) {
+                if ((*i) == 0) y1.erase(i++);
+                else i++;
+              }
+              if (y1.empty()) x1.erase(iy1++);
+              else iy1++;
+            }
+            if (x1.empty()) y2.erase(ix1++);
+            else ix1++;
           }
-        }  
+          if (y2.empty()) x2.erase(iy2++);
+          else iy2++;
+        }
+        if (x2.empty()) button_map.erase(ix2++);
+        else ix2++;
       }
-      return {nullptr,nullptr,nullptr};
+      auto x2_iter = button_map.lower_bound(x);
+      if (x2_iter == button_map.end()) return;
+        
+      auto y2_iter = x2_iter->second.lower_bound(y);
+      if (y2_iter == x2_iter->second.end()) return;
+          
+      auto x1_iter = --y2_iter->second.lower_bound(x);
+            
+      auto y1_iter = --x1_iter->second.lower_bound(y);
+              
+      for (auto i=y1_iter->second.begin();i!=y1_iter->second.end();) {
+        component* c = (*i)->object;
+        if (x >= c->box.x && y >= c->box.y) {
+          button_ev temp = {static_cast<uint16_t>(x - c->box.x),
+                            static_cast<uint16_t>(y - c->box.y),
+                            box.width,
+                            box.height,
+                            state,
+                            type,
+          };
+          (*i)->callback(temp);
+        }
+        i++;
+      }
     }
     // Render optimization & component change handling
-    std::list<update_register_data*> update_data;
-    void update_handle() {
+    std::set<component*> change_element;
+    color clear_color;
+    std::list<dynamic_register_data*> update_data;
+    void dynamic_handle() {
       for (auto i = update_data.begin();i != update_data.end();) {
         auto t = *i;
         if (t) {
@@ -67,7 +89,7 @@ namespace cppreact {
         }
       }
     }
-    void update_add(update_register_data* data) {
+    void dynamic_add(dynamic_register_data* data) {
       update_data.push_back(data);
       auto i = --update_data.end();
       (*i)->ref = &*i;
@@ -97,43 +119,48 @@ namespace cppreact {
       }
       return result;
     }
-
+  // Close handling
+    bool running = true;
+    void (*on_close)(bool&) = 0;
     public:
   // Public API
     renderer(std::initializer_list<component*> children,color clear_color = {0,0,0,255}) :
       component({},children),clear_color(clear_color) {
     }
     virtual ~renderer() { 
-      for (auto& i:hover_event_data.data) if (i.data)
-        if (i.data->ref) i.data->ref = 0;
+      for (auto& x2:button_map)
+        for (auto& y2:x2.second)
+          for (auto& x1:y2.second)
+            for (auto& y1:x1.second)
+              for (auto& i:y1.second)
+                if (i) i->ref = 0;
       for (auto& i:update_data) if (i) if (i->ref) i->ref = 0;
     } 
     void run() {
-      while (on_loop());
+      while (running) on_loop();
     }
-    void (*on_pointer_change)(uint16_t x,uint16_t y) = 0;
-
+    void run_once() { on_loop(); }
     protected:
   // Protected API
     void set_size(uint16_t width,uint16_t height) {
       config.sizing = {SIZING_FIXED(width),SIZING_FIXED(height)};
       change_element.insert(this);
     }
-    void set_pointer(uint16_t x,uint16_t y) {
-      if (on_pointer_change) on_pointer_change(x,y);
-      auto hover = hover_get(x,y);
-      if (hover.object) {
-        hover_position temp = {
-          static_cast<uint16_t>(x - hover.object->box.x),
-          static_cast<uint16_t>(y - hover.object->box.y),
-          hover.object->box.width,
-          hover.object->box.height,
-        };
-        hover.callback(temp);
-      }
+    void close() {
+      if (on_close) on_close(running);
+      else running = false;
+    }
+    inline void set_pointer_move(uint16_t x,uint16_t y) {
+      pointer_ev_run(x,y,EV_BUTTON_NONE,EV_BUTTON_MOVE);
+    }
+    inline void set_pointer_press(uint16_t x,uint16_t y,button_type type,bool is_down) {
+      pointer_ev_run(x, y, type, (is_down)?EV_BUTTON_DOWN:EV_BUTTON_UP);
+    }
+    inline void set_pointer_scroll(uint16_t x,uint16_t y,bool is_up,uint16_t delta) {
+      pointer_ev_run(x,y,(is_up)?EV_BUTTON_WHEEL_UP:EV_BUTTON_WHEEL_DOWN,delta);
     }
     void render() {
-      update_handle();
+      dynamic_handle();
       render_commands a = reduced_layout();
       change_element.clear();
       for (auto& i:a.commands) {
@@ -141,17 +168,17 @@ namespace cppreact {
         case RECT_RENDER_ID:
         on_rect(*reinterpret_cast<color*>(i.data), i.box);
         break;
-        case HOVER_CREATE_ID:
-        hover_add(i.box, reinterpret_cast<hover_create_data*>(i.data));
+        case BUTTON_CREATE_ID:
+        button_add(i.box, reinterpret_cast<button_create_data*>(i.data));
         break;
-        case UPDATE_REGISTER_ID:
-        update_add(reinterpret_cast<update_register_data*>(i.data));
+        case DYNAMIC_REGISTER_ID:
+        dynamic_add(reinterpret_cast<dynamic_register_data*>(i.data));
         break;
         }
       }  
     }
     
-    virtual bool on_loop() = 0;
+    virtual void on_loop() = 0;
     virtual void on_rect(color c,bounding_box box) = 0;
     virtual void on_clear(bounding_box box) {
       on_rect(clear_color,box);

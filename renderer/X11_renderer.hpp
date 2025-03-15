@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef _CPPREACT_X11_RENDERER_HPP
+#define _CPPREACT_X11_RENDERER_HPP
 #include "renderer.hpp"
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -14,14 +14,16 @@ namespace cppreact {
   Display* _x11_Display;
   Window _x11_Window;
   int _x11_Screen;
+
   GC _x11_GC_global;
   int _x11_Width;
   int _x11_Height;
   GC _x11_GC_local;
-  Pixmap current_buffer;
+
   Pixmap back_buffer;
+  
+  Atom close_msg;
   std::string title;
-  int t = 100;
 public:
     X11_renderer(uint16_t width,uint16_t height,std::string title,std::initializer_list<component*> children):
     renderer(children),_x11_Width(width),_x11_Height(height), title(title) {
@@ -41,14 +43,19 @@ public:
       XGCValues_temp.background = _encode_RGB(0,0,0);
     	_x11_GC_global = XCreateGC(_x11_Display, _x11_Window, GCForeground|GCBackground,&XGCValues_temp);
       _x11_GC_local = XCreateGC(_x11_Display, _x11_Window, GCForeground|GCBackground,&XGCValues_temp);
+
+      close_msg = XInternAtom(_x11_Display, "WM_DELETE_WINDOW", False);
+      XSetWMProtocols(_x11_Display, _x11_Window, &close_msg, 1);
+
       set_size(_x11_Width, _x11_Height);
       //Commit changes to X11
       XFlush(_x11_Display);
-      current_buffer = XCreatePixmap(_x11_Display, _x11_Window, 4096, 4096, DefaultDepth(_x11_Display, _x11_Screen));
+
       back_buffer = XCreatePixmap(_x11_Display, _x11_Window, 4096, 4096, DefaultDepth(_x11_Display, _x11_Screen));
+      XFillRectangle(_x11_Display, back_buffer, _x11_GC_global, box.x, box.y, box.width, box.height);
       render();
-      XCopyArea(_x11_Display, back_buffer, current_buffer, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
-      XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
+
+      XCopyArea(_x11_Display, back_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
     };
     ~X11_renderer() {
       XFreeGC(_x11_Display, _x11_GC_global);
@@ -66,15 +73,14 @@ protected:
         XFlush(_x11_Display);
 
     }
-    bool on_loop() override {
+    void on_loop() override {
       XEvent e;
       XNextEvent(_x11_Display, &e);
       switch (e.type) {
         case MotionNotify:
-        set_pointer(e.xmotion.x, e.xmotion.y);
+        set_pointer_move(e.xmotion.x, e.xmotion.y);
         render();
-        XCopyArea(_x11_Display, back_buffer, current_buffer, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
-        XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
+        XCopyArea(_x11_Display, back_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         break;
         case ConfigureNotify:
         if (_x11_Width == e.xconfigure.width && _x11_Height == e.xconfigure.height) break;
@@ -82,14 +88,15 @@ protected:
         _x11_Height = e.xconfigure.height;
         set_size(_x11_Width, _x11_Height); 
         render();
-        XCopyArea(_x11_Display, back_buffer, current_buffer, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
-        XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
+        XCopyArea(_x11_Display, back_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         break;
         case Expose:
-        XCopyArea(_x11_Display, current_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
+        XCopyArea(_x11_Display, back_buffer, _x11_Window, _x11_GC_global,0, 0, _x11_Width, _x11_Height, 0, 0);
         break;
+        case ClientMessage:
+        if (e.xclient.data.l[0] == close_msg) close();
+        break;  
       }
-      return true;
     }
     void on_rect(color c, bounding_box box) override {
       XSetForeground(_x11_Display, _x11_GC_local, _encode_RGB(c.r, c.g, c.b));
@@ -98,3 +105,5 @@ protected:
     }
   };
 }
+
+#endif

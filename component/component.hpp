@@ -33,8 +33,8 @@ namespace cppreact {
   inline _layout_sizing_axis SIZING_GROW(uint16_t min,uint16_t max,float_t percent = 1) {return {_GROW,min,max,percent};};
 
   enum _LayoutDirection {LEFT_TO_RIGHT,TOP_TO_BOTTOM};
-  enum _LayoutAlignmentX {XLEFT,XCENTER,XRIGHT};
-  enum _LayoutAlignmentY {YTOP,YCENTER,YBOTTOM};
+  enum _LayoutAlignmentX {ALIGN_X_LEFT,ALIGN_X_CENTER,ALIGN_X_RIGHT};
+  enum _LayoutAlignmentY {ALIGN_Y_TOP,ALIGN_Y_CENTER,ALIGN_Y_BOTTOM};
   struct layout_config {
     _layout_sizing sizing = {SIZING_FIT(),SIZING_FIT()};
     struct {
@@ -46,8 +46,8 @@ namespace cppreact {
     uint16_t child_gap = 0;
     _LayoutDirection direction = LEFT_TO_RIGHT;
     struct {
-      _LayoutAlignmentX x = XLEFT;
-      _LayoutAlignmentY y = YTOP;
+      _LayoutAlignmentX x = ALIGN_X_LEFT;
+      _LayoutAlignmentY y = ALIGN_Y_TOP;
     } alignment;
   };
   struct bounding_box {
@@ -77,6 +77,7 @@ namespace cppreact {
         uint32_t child_count = 0;
     } k_tree; 
     render_commands layout() {
+      bounding_box old_box = box;
       // Init: Reset box
       // Cache the visiting order for later use
       std::list<component*> visiting_order_dfs;
@@ -129,12 +130,8 @@ namespace cppreact {
       for (auto i : visiting_order_dfs) 
         i->on_child_position();
       // 6th scan: Output render commands (DFS)
-      std::list<render_command> result;
-      for (auto i : visiting_order_dfs) {
-        std::list<render_command> temp = std::move(i->on_layout());
-        result.insert(result.end(),temp.begin(),temp.end());
-      }
-      return {box,result};
+
+      return {old_box,std::move(this->on_layout())};
       
     };
     component(layout_config config,
@@ -210,7 +207,14 @@ namespace cppreact {
       }
     }
     virtual std::list<render_command> on_layout() {
-      return {};
+      std::list<render_command> result;
+      component* i = k_tree.child_begin;
+      while (i) {
+        std::list<render_command> temp = std::move(i->on_layout());
+        result.insert(result.end(),temp.begin(),temp.end());
+        i = i->k_tree.next_sibling;
+      }
+      return result;
     }
     private:
     inline void push_back(component* item) {
@@ -266,7 +270,7 @@ namespace cppreact {
       {
         // Left components
         for (;start;start = start->k_tree.next_sibling) {
-          if (start->config.alignment.x != XLEFT) break;
+          if (start->config.alignment.x != ALIGN_X_LEFT) break;
           if (start->k_tree.prev_sibling)
             start->box.x = start->k_tree.prev_sibling->box.x + 
                          start->k_tree.prev_sibling->box.width + 
@@ -276,7 +280,7 @@ namespace cppreact {
         }
         // Right components
         for (;end;end = end->k_tree.prev_sibling) {
-          if (end->config.alignment.x != XRIGHT) break;
+          if (end->config.alignment.x != ALIGN_X_RIGHT) break;
           if (end->k_tree.next_sibling)
             end->box.x = end->k_tree.next_sibling->box.x - 
                        end->box.width - config.child_gap;
@@ -289,10 +293,10 @@ namespace cppreact {
       {
         std::list<pos_along_center_component> center_components;
         for (auto i = start;i != end->k_tree.next_sibling;i = i->k_tree.next_sibling) {
-          if (i->config.alignment.x == XCENTER) {
+          if (i->config.alignment.x == ALIGN_X_CENTER) {
             bool is_connected = false;
             if (i->k_tree.prev_sibling)
-              if (i->k_tree.prev_sibling->config.alignment.x == XCENTER) {
+              if (i->k_tree.prev_sibling->config.alignment.x == ALIGN_X_CENTER) {
                 center_components.back().children.push_back(i);
                 center_components.back().length += i->box.width + config.child_gap;
                 is_connected = true;
@@ -315,7 +319,7 @@ namespace cppreact {
       }
       // 2nd pass: Left components
       for (auto i=start;i != end->k_tree.next_sibling;i = i->k_tree.next_sibling) {
-        if (i->config.alignment.x == XLEFT) {
+        if (i->config.alignment.x == ALIGN_X_LEFT) {
           i->box.x = i->k_tree.prev_sibling->box.x + 
                      i->k_tree.prev_sibling->box.width + 
                      config.child_gap;
@@ -323,7 +327,7 @@ namespace cppreact {
       }
       // 3rd pass: Right components
       for (auto i=end;i != start->k_tree.prev_sibling;i = i->k_tree.prev_sibling) {
-        if (i->config.alignment.x == XRIGHT) {
+        if (i->config.alignment.x == ALIGN_X_RIGHT) {
           i->box.x = i->k_tree.next_sibling->box.x - 
                      i->box.width - config.child_gap;
         }
@@ -332,13 +336,13 @@ namespace cppreact {
     inline void on_pos_x_across() {
       for (auto i=k_tree.child_begin;i;i = i->k_tree.next_sibling) {
         switch (i->config.alignment.x) {
-          case XLEFT: 
+          case ALIGN_X_LEFT: 
           i->box.x = box.x + config.padding.left;
           break;
-          case XRIGHT:
+          case ALIGN_X_RIGHT:
           i->box.x = box.x + box.width - config.padding.right - i->box.width;
           break;
-          case XCENTER:
+          case ALIGN_X_CENTER:
           i->box.x = box.x + box.width / 2 - i->box.width / 2;
           break;
         }
@@ -352,7 +356,7 @@ namespace cppreact {
       {
         // Left components
         for (;start;start = start->k_tree.next_sibling) {
-          if (start->config.alignment.y != YTOP) break;
+          if (start->config.alignment.y != ALIGN_Y_TOP) break;
           if (start->k_tree.prev_sibling)
             start->box.y = start->k_tree.prev_sibling->box.y + 
                          start->k_tree.prev_sibling->box.height + 
@@ -362,7 +366,7 @@ namespace cppreact {
         }
         // Right components
         for (;end;end = end->k_tree.prev_sibling) {
-          if (end->config.alignment.y != YBOTTOM) break;
+          if (end->config.alignment.y != ALIGN_Y_BOTTOM) break;
             if (end->k_tree.next_sibling)
               end->box.y = end->k_tree.next_sibling->box.y - 
                          end->box.height - config.child_gap;
@@ -376,10 +380,10 @@ namespace cppreact {
       {
         std::list<pos_along_center_component> center_components;
         for (auto i = start;i != end->k_tree.next_sibling;i = i->k_tree.next_sibling) {
-          if (i->config.alignment.y == YCENTER) {
+          if (i->config.alignment.y == ALIGN_Y_CENTER) {
             bool is_connected = false;
             if (i->k_tree.prev_sibling)
-              if (i->k_tree.prev_sibling->config.alignment.y == YCENTER) {
+              if (i->k_tree.prev_sibling->config.alignment.y == ALIGN_Y_CENTER) {
                 center_components.back().children.push_back(i);
                 center_components.back().length += i->box.height + config.child_gap;
                 is_connected = true;
@@ -402,7 +406,7 @@ namespace cppreact {
       }
       // 2nd pass: Left components
       for (auto i=start;i != end->k_tree.next_sibling;i = i->k_tree.next_sibling) {
-        if (i->config.alignment.y == YTOP) {
+        if (i->config.alignment.y == ALIGN_Y_TOP) {
           i->box.y = i->k_tree.prev_sibling->box.y + 
                      i->k_tree.prev_sibling->box.height + 
                      config.child_gap;
@@ -410,7 +414,7 @@ namespace cppreact {
       }
       // 3rd pass: Right components
       for (auto i=end;i != start->k_tree.prev_sibling;i = i->k_tree.prev_sibling) {
-        if (i->config.alignment.y == YBOTTOM) {
+        if (i->config.alignment.y == ALIGN_Y_BOTTOM) {
           i->box.y = i->k_tree.next_sibling->box.y - 
                      i->box.height - config.child_gap;
         }
@@ -420,13 +424,13 @@ namespace cppreact {
     inline void on_pos_y_across() {
       for (auto i=k_tree.child_begin;i;i = i->k_tree.next_sibling) {
         switch (i->config.alignment.y) {
-          case YTOP: 
+          case ALIGN_Y_TOP: 
           i->box.y = box.y + config.padding.top;
           break;
-          case YBOTTOM:
+          case ALIGN_Y_BOTTOM:
           i->box.y = box.y + box.height - config.padding.bottom - i->box.height;
           break;
-          case YCENTER:
+          case ALIGN_Y_CENTER:
           i->box.y = box.y + box.height / 2 - i->box.height / 2;
           break;
         }

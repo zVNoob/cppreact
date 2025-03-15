@@ -1,3 +1,6 @@
+#ifndef _CPPREACT_WIN32_RENDERER_HPP
+#define _CPPREACT_WIN32_RENDERER_HPP
+
 #include <cstdint>
 #include <initializer_list>
 #include <minwindef.h>
@@ -56,9 +59,8 @@ namespace cppreact {
       break;
     case WM_ERASEBKGND:
       break;
-    case WM_DESTROY:
-      // Handle WM_DESTROY message
-      PostQuitMessage(0);
+    case WM_CLOSE:
+      close();
       break;
     default:
       return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -118,10 +120,8 @@ namespace cppreact {
       MSG msg;
       BOOL bRet;
       bRet = GetMessage(&msg, NULL, 0, 0);
-      if (bRet == 0 || bRet == -1) return false;
       TranslateMessage(&msg);
       DispatchMessage(&msg);
-      return 1;
     }
     void on_rect(color c, bounding_box box) override {
       HBRUSH br =  CreateSolidBrush(RGB(c.r,c.g,c.b));
@@ -131,3 +131,5 @@ namespace cppreact {
     };
   };
 }
+
+#endif

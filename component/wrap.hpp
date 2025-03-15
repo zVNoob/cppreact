@@ -38,26 +38,26 @@ namespace cppreact {
           current_y += y_size + spacing;
           y_size = 0;
         }
-        if (i->config.alignment.x == XLEFT) {
+        if (i->config.alignment.x == ALIGN_X_LEFT) {
           i->box.x = current_x;
           i->box.y = current_y;
           current_x += i->box.width + config.child_gap;
           y_size = std::max(y_size,i->box.height);
         }
-        else if (i->config.alignment.x == XRIGHT) {
+        else if (i->config.alignment.x == ALIGN_X_RIGHT) {
           auto j = i;
           for (;j;j = j->k_tree.next_sibling) {
-            if (j->config.alignment.x != XRIGHT) break;
+            if (j->config.alignment.x != ALIGN_X_RIGHT) break;
             current_x += j->box.width + config.child_gap;
             if (current_x > (box.width - config.padding.right)) break;
           }
           if (j) {
             if (j!=i)
-              if (j->k_tree.prev_sibling->config.alignment.x == XRIGHT) 
+              if (j->k_tree.prev_sibling->config.alignment.x == ALIGN_X_RIGHT) 
                 j = j->k_tree.prev_sibling;
           }
           else if (k_tree.child_end)
-            if (k_tree.child_end->config.alignment.x == XRIGHT)
+            if (k_tree.child_end->config.alignment.x == ALIGN_X_RIGHT)
               j = k_tree.child_end;
           if (j) {
             current_x = box.width - config.padding.right;
@@ -71,21 +71,21 @@ namespace cppreact {
           }
           current_x = box.width - config.padding.right;
           i = j;
-        } else if (i->config.alignment.x == XCENTER) {
+        } else if (i->config.alignment.x == ALIGN_X_CENTER) {
           auto j = i;
           auto temp = current_x;
           for (;j;j = j->k_tree.next_sibling) {
-            if (j->config.alignment.x != XCENTER) break;
+            if (j->config.alignment.x != ALIGN_X_CENTER) break;
             current_x += j->box.width + config.child_gap;
             if (current_x > (box.width - config.padding.right)) break;
           }
           if (j) {
             if (j!=i)
-              if (j->k_tree.prev_sibling->config.alignment.x == XCENTER) 
+              if (j->k_tree.prev_sibling->config.alignment.x == ALIGN_X_CENTER) 
                 j = j->k_tree.prev_sibling;
           }
           else if (k_tree.child_end)
-            if (k_tree.child_end->config.alignment.x == XCENTER)
+            if (k_tree.child_end->config.alignment.x == ALIGN_X_CENTER)
               j = k_tree.child_end;
           if (j) {
             current_x = std::max(temp,uint16_t(box.width/2 - (current_x - temp) / 2));
@@ -110,26 +110,26 @@ namespace cppreact {
           current_y = config.padding.top;
           x_size = 0;
         }
-        if (i->config.alignment.y == YTOP) {
+        if (i->config.alignment.y == ALIGN_Y_TOP) {
           i->box.x = current_x;
           i->box.y = current_y;
           current_y += i->box.height + config.child_gap;
           x_size = std::max(x_size,i->box.width);
         }
-        else if (i->config.alignment.y == YBOTTOM) {
+        else if (i->config.alignment.y == ALIGN_Y_BOTTOM) {
           auto j = i;
           for (;j;j = j->k_tree.next_sibling) {
-            if (j->config.alignment.y != YBOTTOM) break;
+            if (j->config.alignment.y != ALIGN_Y_BOTTOM) break;
             current_y += j->box.height + config.child_gap;
             if (current_y > (box.height - config.padding.right)) break;
           }
           if (j) {
             if (j!=i)
-              if (j->k_tree.prev_sibling->config.alignment.y == YBOTTOM) 
+              if (j->k_tree.prev_sibling->config.alignment.y == ALIGN_Y_BOTTOM) 
                 j = j->k_tree.prev_sibling;
           }
           else if (k_tree.child_end)
-            if (k_tree.child_end->config.alignment.y == YBOTTOM)
+            if (k_tree.child_end->config.alignment.y == ALIGN_Y_BOTTOM)
               j = k_tree.child_end;
           if (j) {
             current_y = box.height - config.padding.bottom;
@@ -143,21 +143,21 @@ namespace cppreact {
           }
           current_x = box.height - config.padding.bottom;
           i = j;
-        } else if (i->config.alignment.y == YCENTER) {
+        } else if (i->config.alignment.y == ALIGN_Y_CENTER) {
           auto j = i;
           auto temp = current_y;
           for (;j;j = j->k_tree.next_sibling) {
-            if (j->config.alignment.y != YCENTER) break;
+            if (j->config.alignment.y != ALIGN_Y_CENTER) break;
             current_y += j->box.height + config.child_gap;
             if (current_y > (box.height - config.padding.bottom)) break;
           }
           if (j) {
             if (j!=i)
-              if (j->k_tree.prev_sibling->config.alignment.y == YCENTER) 
+              if (j->k_tree.prev_sibling->config.alignment.y == ALIGN_Y_CENTER) 
                 j = j->k_tree.prev_sibling;
           }
           else if (k_tree.child_end)
-            if (k_tree.child_end->config.alignment.y == YCENTER)
+            if (k_tree.child_end->config.alignment.y == ALIGN_Y_CENTER)
               j = k_tree.child_end;
           if (j) {
             current_y = std::max(temp,uint16_t(box.height/2 - (current_y - temp) / 2));

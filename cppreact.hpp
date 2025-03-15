@@ -1,7 +1,10 @@
-#pragma once 
+#ifndef _CPPREACT_HPP
+#define _CPPREACT_HPP
 
-#include "component/component.hpp"
-#include "component/rect.hpp"
-#include "component/wrap.hpp"
-#include "component/func.hpp"
-#include "component/hover.hpp"
+#include "component/component.hpp" // IWYU pragma: export
+#include "component/rect.hpp"      // IWYU pragma: export
+#include "component/wrap.hpp"      // IWYU pragma: export
+#include "component/func.hpp"      // IWYU pragma: export
+#include "component/button.hpp"    // IWYU pragma: export
+
+#endif
