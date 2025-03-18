@@ -3,12 +3,10 @@
 #include "../component/component.hpp"
 #include "../component/rect.hpp"
 #include "../component/button.hpp"
-#include "../component/func.hpp"
 #include "../component/floating.hpp"
 #include <cstdint>
 #include <list>
 #include <map>
-#include <set>
 
 namespace cppreact {
   class renderer : protected component {
@@ -75,48 +73,7 @@ namespace cppreact {
       }
     }
     // Render optimization & component change handling
-    std::set<component*> change_element;
     color clear_color;
-    std::list<dynamic_register_data*> update_data;
-    void dynamic_handle() {
-      for (auto i = update_data.begin();i != update_data.end();) {
-        auto t = *i;
-        if (t) {
-          if (t->changed) change_element.insert(t->obj);
-          t->changed = false;
-          i++;
-        } else {
-          update_data.erase(i++);
-        }
-      }
-    }
-    void dynamic_add(dynamic_register_data* data) {
-      update_data.push_back(data);
-      auto i = --update_data.end();
-      (*i)->ref = &*i;
-    }
-    render_commands reduced_layout() {
-      for (auto i = change_element.begin();i != change_element.end();) {
-        component* temp = *i;
-        while (temp->k_tree.parent) {
-          if (temp->k_tree.parent->config.sizing.x.mode == _FIT) temp = temp->k_tree.parent;
-          else if (temp->k_tree.parent->config.sizing.y.mode == _FIT) temp = temp->k_tree.parent;
-          else break;
-          auto t = change_element.find(temp);
-          if (t != change_element.end())
-            if (t != i) {
-              change_element.erase(i++);
-              break;
-            }
-        }
-        i++;
-      }
-      render_commands result;
-      for (auto& i:change_element) {
-        result.splice(result.end(),i->layout());
-      }
-      return result;
-    }
     void push_floating(render_commands::iterator& i,std::list<render_commands>& queue) {
       i++;
       queue.push_back({});
@@ -146,7 +103,6 @@ namespace cppreact {
             for (auto& y1:x1.second)
               for (auto& i:y1.second)
                 if (i) i->ref = 0;
-      for (auto& i:update_data) if (i) if (i->ref) i->ref = 0;
     } 
     void run() {
       while (running) on_loop();
@@ -156,7 +112,6 @@ namespace cppreact {
   // Protected API
     void set_size(uint16_t width,uint16_t height) {
       config.sizing = {SIZING_FIXED(width),SIZING_FIXED(height)};
-      change_element.insert(this);
     }
     void close() {
       if (on_close) on_close(running);
@@ -173,10 +128,7 @@ namespace cppreact {
     }
   
     void render() {
-      //dynamic_handle();
-      //render_commands a = reduced_layout();
-      //render_commands a = layout();
-      //change_element.clear();
+
       std::list<render_commands> queue = {std::move(layout())};
       
       while (queue.size()) {
@@ -192,9 +144,6 @@ namespace cppreact {
           break;
           case BUTTON_CREATE_ID:
           button_add(i->box, reinterpret_cast<button_create_data*>(i->data));
-          break;
-          case DYNAMIC_REGISTER_ID:
-          dynamic_add(reinterpret_cast<dynamic_register_data*>(i->data));
           break;
           case FLOAT_BEGIN_ID:
           push_floating(i,queue);

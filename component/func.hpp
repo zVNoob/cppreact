@@ -9,20 +9,6 @@
 
 namespace cppreact {
   class state_system {
-    bool* changed_flag = 0;
-    template<typename T>
-    class property {
-      T* data;
-      state_system* owner;
-      public:
-      operator T() {return *data;}
-      T& operator=(T value) const {
-        *data = value;
-        if (owner->changed_flag) *(owner->changed_flag) = true;
-        return *data;
-      }
-      property(T* data,state_system* owner) : data(data),owner(owner) {}
-    };
     template<typename T> 
     class _state_list {
       std::list<T> data;
@@ -31,28 +17,25 @@ namespace cppreact {
       _state_list() : 
         pos(data.end()) {}
       void reset() {pos = data.begin();}
-      property<T> get(T& inp,state_system* owner) {
+      T& get(T& inp) {
         if (pos == data.end()) {
           data.push_back(inp);
           pos = --data.end();
         }
-        return property<T>(&*(pos++),owner);
+        return *(pos++);
       }
     };
     std::unordered_map<std::type_index, std::pair<bool,std::any>> _internal_data;
     public:
-    state_system(bool* changed_flag = 0) : changed_flag(changed_flag) {};
-    ~state_system() {
-    }
     template<typename T> 
-    property<T> get(T value = T()) {
+    T& get(T value = T()) {
       auto current = _internal_data.insert({std::type_index(typeid(T)),{0,_state_list<T>()}}).first;
       _state_list<T>& ptr = std::any_cast<_state_list<T>&>(current->second.second);
       if (current->second.first == 0) {
         ptr.reset();
         current->second.first = 1;
       }
-      return ptr.get(value,this);
+      return ptr.get(value);
     }
     void reset() {for (auto&i:_internal_data) i.second.first = 0;}
   };
@@ -65,7 +48,6 @@ namespace cppreact {
       if (ref) *ref = 0;
     }
   };
-  enum {DYNAMIC_REGISTER_ID = 100};
 
   class func : public component {
     public:
@@ -74,7 +56,7 @@ namespace cppreact {
     state_system state;
     public:
     func(std::function<component*(state_system&)> f) : 
-      f(f),component({}),data({false,this,nullptr}),state(&data.changed) {
+      f(f),component({}),data({false,this,nullptr}) {
     }
     protected:
     void on_init_layout() override {
@@ -86,12 +68,6 @@ namespace cppreact {
       config = k_tree.child_begin->config;
       config.padding = {0,0,0,0};
       config.child_gap = 0;
-    }
-    std::list<render_command> on_layout() override {
-      std::list<render_command> res;
-      if (data.ref == 0) res.push_back({.box = box,.id = DYNAMIC_REGISTER_ID,.data = &data});
-      res.splice(res.end(),component::on_layout());
-      return res;
     }
   };
 }

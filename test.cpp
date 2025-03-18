@@ -30,12 +30,12 @@ int main() {
               }),
               new rect({255,255,50},{.sizing = {.x = SIZING_FIXED(50),.y = SIZING_FIXED(50)},.alignment = {.x = ALIGN_X_LEFT}}),
               new func([](state_system& s) {
-                auto r = s.get<uint8_t>(200);
-                auto g = s.get<uint8_t>(200);
-                auto b = s.get<uint8_t>(200);
-                auto x = s.get<uint16_t>(100);
-                auto y = s.get<uint16_t>(100);
-                return new button([=](button_ev p){
+                auto& r = s.get<uint8_t>(200);
+                auto& g = s.get<uint8_t>(200);
+                auto& b = s.get<uint8_t>(200);
+                auto& x = s.get<uint16_t>(100);
+                auto& y = s.get<uint16_t>(100);
+                return new button([&](button_ev p){
                                     r = rand();
                                     g = rand();
                                     b = rand();
