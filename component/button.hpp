@@ -5,7 +5,7 @@
 #include <functional>
 
 namespace cppreact {
-  enum {BUTTON_CREATE_ID=100};
+  enum {BUTTON_CREATE_ID=1000};
   enum button_state {
     EV_BUTTON_DOWN = -2,
     EV_BUTTON_UP = -1,
@@ -35,7 +35,7 @@ namespace cppreact {
       return object == other.object;
     }
   };
-  
+  // Pointer-reactive component with callback
   class button : public component { 
     bounding_box old_box = {0,0,0,0};
     button_create_data data;
@@ -59,8 +59,7 @@ namespace cppreact {
         result.push_back({.box = box,.id = BUTTON_CREATE_ID,.data = &data});
       }
       old_box = box;
-      std::list<render_command> temp = std::move(component::on_layout());
-      result.insert(result.end(),temp.begin(),temp.end());
+      result.splice(result.end(),component::on_layout());
       return result;
     }
   };

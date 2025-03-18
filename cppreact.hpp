@@ -6,5 +6,6 @@
 #include "component/wrap.hpp"      // IWYU pragma: export
 #include "component/func.hpp"      // IWYU pragma: export
 #include "component/button.hpp"    // IWYU pragma: export
+#include "component/absolute.hpp"  // IWYU pragma: export
 
 #endif

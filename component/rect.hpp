@@ -12,14 +12,13 @@ namespace cppreact {
     uint8_t a = 255;
   };
 
-  enum {RECT_RENDER_ID = 1};
+  enum {RECT_RENDER_ID = 10};
   class rect : public component {
     color c;
     protected:
     std::list<render_command> on_layout() override {
       std::list<render_command> res = {{.box = box,.id = RECT_RENDER_ID,.data = &c}};
-      std::list<render_command> temp = std::move(component::on_layout());
-      res.insert(res.end(),temp.begin(),temp.end());
+      res.splice(res.end(),component::on_layout());
       return res;
     }
     public:

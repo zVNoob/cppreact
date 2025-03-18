@@ -4,6 +4,7 @@
 #include "../component/rect.hpp"
 #include "../component/button.hpp"
 #include "../component/func.hpp"
+#include "../component/floating.hpp"
 #include <cstdint>
 #include <list>
 #include <map>
@@ -111,13 +112,24 @@ namespace cppreact {
         i++;
       }
       render_commands result;
-      render_commands a;
       for (auto& i:change_element) {
-        a = i->layout();
-        on_clear(a.clearing_box);
-        result.commands.insert(result.commands.end(),a.commands.begin(),a.commands.end());
+        result.splice(result.end(),i->layout());
       }
       return result;
+    }
+    void push_floating(render_commands::iterator& i,std::list<render_commands>& queue) {
+      i++;
+      queue.push_back({});
+      auto& current = queue.back();
+      while (i->id != FLOAT_END_ID) {
+        if (i->id == FLOAT_BEGIN_ID) {
+          push_floating(i,queue);
+          i++;
+          continue;
+        }
+        current.push_back(*i);
+        i++;
+      }
     }
   // Close handling
     bool running = true;
@@ -159,23 +171,39 @@ namespace cppreact {
     inline void set_pointer_scroll(uint16_t x,uint16_t y,bool is_up,uint16_t delta) {
       pointer_ev_run(x,y,(is_up)?EV_BUTTON_WHEEL_UP:EV_BUTTON_WHEEL_DOWN,delta);
     }
+  
     void render() {
-      dynamic_handle();
-      render_commands a = reduced_layout();
-      change_element.clear();
-      for (auto& i:a.commands) {
-        switch (i.id) {
-        case RECT_RENDER_ID:
-        on_rect(*reinterpret_cast<color*>(i.data), i.box);
-        break;
-        case BUTTON_CREATE_ID:
-        button_add(i.box, reinterpret_cast<button_create_data*>(i.data));
-        break;
-        case DYNAMIC_REGISTER_ID:
-        dynamic_add(reinterpret_cast<dynamic_register_data*>(i.data));
-        break;
-        }
-      }  
+      //dynamic_handle();
+      //render_commands a = reduced_layout();
+      //render_commands a = layout();
+      //change_element.clear();
+      std::list<render_commands> queue = {std::move(layout())};
+      
+      while (queue.size()) {
+        auto current_queue = std::move(queue.front());
+        queue.pop_front();
+        for (auto i = current_queue.begin();i != current_queue.end();i++) {
+          switch (i->id) {
+          case CLEARING_ID:
+          on_clear(i->box);
+          break;
+          case RECT_RENDER_ID:
+          on_rect(*reinterpret_cast<color*>(i->data), i->box);
+          break;
+          case BUTTON_CREATE_ID:
+          button_add(i->box, reinterpret_cast<button_create_data*>(i->data));
+          break;
+          case DYNAMIC_REGISTER_ID:
+          dynamic_add(reinterpret_cast<dynamic_register_data*>(i->data));
+          break;
+          case FLOAT_BEGIN_ID:
+          push_floating(i,queue);
+          break;
+          case FLOAT_END_ID:
+          break;
+          }
+        }  
+      }
     }
     
     virtual void on_loop() = 0;

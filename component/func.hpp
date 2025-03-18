@@ -65,7 +65,7 @@ namespace cppreact {
       if (ref) *ref = 0;
     }
   };
-  enum {DYNAMIC_REGISTER_ID = 10};
+  enum {DYNAMIC_REGISTER_ID = 100};
 
   class func : public component {
     public:
@@ -90,8 +90,7 @@ namespace cppreact {
     std::list<render_command> on_layout() override {
       std::list<render_command> res;
       if (data.ref == 0) res.push_back({.box = box,.id = DYNAMIC_REGISTER_ID,.data = &data});
-      std::list<render_command> temp = std::move(component::on_layout());
-      res.insert(res.end(),temp.begin(),temp.end());
+      res.splice(res.end(),component::on_layout());
       return res;
     }
   };

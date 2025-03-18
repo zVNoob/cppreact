@@ -61,11 +61,9 @@ namespace cppreact {
     uint32_t id = 0;
     void* data = nullptr;
   };
-  struct render_commands {
-    bounding_box clearing_box;
-    std::list<render_command> commands;
-  };
-  // Layout component declariation
+  typedef std::list<render_command> render_commands;
+  enum {CLEARING_ID = 1};
+  // Basic building block of CPPReact
   class component {
     public:
     struct {
@@ -130,8 +128,9 @@ namespace cppreact {
       for (auto i : visiting_order_dfs) 
         i->on_child_position();
       // 6th scan: Output render commands (DFS)
-
-      return {old_box,std::move(this->on_layout())};
+      render_commands result = {{.box = box,.id = CLEARING_ID}};
+      result.splice(result.end(),std::move(this->on_layout()));
+      return result;
       
     };
     component(layout_config config,
@@ -264,6 +263,24 @@ namespace cppreact {
     };
     inline void on_pos_x_along() {
       // Pre-pass: Initialize & align some components
+      std::list<component*> temp_components;
+      // {
+      //   component* temp = k_tree.child_begin;
+      //   if (temp)
+      //     while (temp->k_tree.next_sibling) {
+      //       if (temp->config.alignment.x == ALIGN_X_RIGHT && 
+      //           temp->k_tree.next_sibling->config.alignment.x == ALIGN_X_LEFT) {
+      //         component* temp2 = new component({.alignment = {.x = ALIGN_X_CENTER}},{});
+      //         temp_components.push_back(temp2);
+      //         temp2->k_tree.next_sibling = temp->k_tree.next_sibling;
+      //         temp->k_tree.next_sibling->k_tree.prev_sibling = temp2;
+      //         temp->k_tree.next_sibling = temp2;
+      //         temp2->k_tree.prev_sibling = temp;
+      //         temp2->k_tree.parent = temp->k_tree.parent;
+      //       }
+      //       temp = temp->k_tree.next_sibling;
+      //     }
+      // }
       component* start = k_tree.child_begin;
       component* end = k_tree.child_end;
       uint16_t left_offset = config.padding.left;
@@ -332,6 +349,7 @@ namespace cppreact {
                      i->box.width - config.child_gap;
         }
       }
+      //for (auto& i:temp_components) delete i;
     }
     inline void on_pos_x_across() {
       for (auto i=k_tree.child_begin;i;i = i->k_tree.next_sibling) {
