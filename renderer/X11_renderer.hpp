@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <memory>
 
 namespace cppreact {
   class X11_renderer : public renderer {
@@ -99,6 +100,7 @@ public:
       XRenderPictureAttributes pict_attr;
       back_buffer_pict = XRenderCreatePicture(_x11_Display, back_buffer, back_buffer_format,0,&pict_attr);
       window_buffer_pict = XRenderCreatePicture(_x11_Display, _x11_Window, back_buffer_format,0,&pict_attr);
+      XSynchronize(_x11_Display, True);
       
     };
     ~X11_renderer() {
@@ -141,6 +143,7 @@ protected:
       }
     }
     void on_begin_loop(component* root) override {
+      clear_buffer();
       render(root);
       XRenderComposite(_x11_Display, PictOpSrc, back_buffer_pict, None, window_buffer_pict, 0, 0, 0, 0,0,0, _x11_Width, _x11_Height);
     }
@@ -153,6 +156,70 @@ protected:
       if (blend == BLEND_ADD) op = PictOpAdd;
       if (blend == BLEND_MULTIPLY) op = PictOpMultiply;
       XRenderFillRectangle(_x11_Display, op, back_buffer_pict, &color, box.x, box.y, box.width, box.height);
+    }
+
+    struct X11RendererImage {
+      Pixmap pixmap;
+      Display* display;
+      Picture src;
+      Pixmap scaled_pixmap;
+      Picture scaled;
+      uint16_t width,height;
+    };
+
+    std::any on_new_image(texture *tex) override {
+      char* pixels = new char[tex->size().first * tex->size().second * 4];
+      for (int i = 0; i < tex->size().first * tex->size().second * 4; i+=4) {
+        pixels[i] = (*tex)[i/4/tex->size().first][(i/4)%tex->size().first].b;
+        pixels[i+1] = (*tex)[i/4/tex->size().first][(i/4)%tex->size().first].g;
+        pixels[i+2] = (*tex)[i/4/tex->size().first][(i/4)%tex->size().first].r;
+        pixels[i+3] = (*tex)[i/4/tex->size().first][(i/4)%tex->size().first].a;
+      }
+      XImage* img = XCreateImage(_x11_Display, DefaultVisual(_x11_Display, _x11_Screen),
+        32,ZPixmap, 0,
+        pixels, tex->size().first, tex->size().second, 32, 0);
+      std::shared_ptr<X11RendererImage> result = std::make_shared<X11RendererImage>();
+      result->pixmap = XCreatePixmap(_x11_Display, _x11_Window, tex->size().first, tex->size().second, 32);
+
+      XPutImage(_x11_Display, result->pixmap, rgba_gc, img, 0, 0, 0, 0, tex->size().first, tex->size().second);
+    
+      XDestroyImage(img);
+      
+      XRenderPictFormat* pict_fmt = XRenderFindStandardFormat(_x11_Display, PictStandardARGB32);
+      result->src = XRenderCreatePicture(_x11_Display, result->pixmap, pict_fmt, 0, 0);
+      
+      result->scaled_pixmap = XCreatePixmap(_x11_Display, _x11_Window, 4096, 4096, 32);
+      //XFillRectangle(_x11_Display, result.scaled_pixmap, rgba_gc, 0, 0, 4096, 4096);
+      result->scaled = XRenderCreatePicture(_x11_Display, result->scaled_pixmap, pict_fmt, 0, 0);
+
+      result->display = _x11_Display;
+      result->width = tex->size().first;
+      result->height = tex->size().second;
+      return result;
+    }
+    void on_image(bounding_box box, std::any &image) override {
+      auto& img = *std::any_cast<std::shared_ptr<X11RendererImage>>(image).get();
+      XRenderComposite(_x11_Display, PictOpSrc, img.src, None, img.scaled,0,0,0,0, 0,0, img.width, img.height);
+      double x_scale = static_cast<double>(img.width) / static_cast<double>(box.width);
+      double y_scale = static_cast<double>(img.height) / static_cast<double>(box.height);
+      XTransform trans = {{
+        {XDoubleToFixed(x_scale),0,0},
+        {0,XDoubleToFixed(y_scale),0},
+        {0,0,XDoubleToFixed(1.0)}
+      }};
+      XRenderSetPictureTransform(_x11_Display, img.scaled, &trans);
+      XRenderComposite(_x11_Display, PictOpOver, img.scaled, None, back_buffer_pict,0,0,0,0, box.x, box.y, box.width, box.height);
+    }
+    void on_each_text(bounding_box box, std::any& data, color col) override {
+      auto& img = *std::any_cast<std::shared_ptr<X11RendererImage>>(data).get();
+      XRenderComposite(_x11_Display, PictOpSrc, img.src, None, img.scaled,0,0,0,0, 0,0, img.width, img.height);
+      XRenderColor color = {static_cast<unsigned short>(col.r * 255),
+                            static_cast<unsigned short>(col.g * 255), 
+                            static_cast<unsigned short>(col.b * 255), 
+                            static_cast<unsigned short>(col.a * 255)};
+      XRenderFillRectangle(_x11_Display, PictOpIn, img.scaled, &color, 0, 0, img.width, img.height);
+      XRenderComposite(_x11_Display, PictOpOver, img.scaled, None, back_buffer_pict,0,0,0,0, box.x, box.y, box.width, box.height);
+      
     }
   };
 }
