@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
-#include <iostream>
 #include <list>
 
 namespace cppreact {

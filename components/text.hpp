@@ -29,7 +29,7 @@ namespace cppreact {
     int16_t offset_y;
     int16_t advance_y;
   };
-
+  // Represents a font, with shaping & bitmap rendering support
   class font {
     //uint16_t size;
     std::map<uint32_t, text_cache> cache;
@@ -166,6 +166,7 @@ namespace cppreact {
       return result;
     }
   };
+  // An Unicode-shaped text component
   class text : public component {
     font* f;
     layout_config orig_config;

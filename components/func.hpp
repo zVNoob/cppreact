@@ -63,7 +63,7 @@ namespace cppreact {
     }
     void reset() {for (auto&i:_internal_data) i.second.first = 0;}
   };
-  
+  // Functional component, accepts a function that returns a component for dynamic output with currying via state
   class func : public component {
     state_system state;
     std::function<component*(state_system&)> f;

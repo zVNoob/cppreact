@@ -8,6 +8,7 @@
 #include <list>
 #include <utility>
 #include <vector>
+#include <istream>
 
 
 
@@ -17,6 +18,7 @@
 #endif
 
 namespace cppreact {
+// Representing an image in memory
   class texture {
     std::vector<std::vector<color>> data;
     std::list<bool*> holder;
@@ -73,6 +75,7 @@ namespace cppreact {
     return result;
   }
 #endif
+// A component that displays an image with auto scale
   class image : public component {
     bool keep_aspect;
     layout_config orig_config;
