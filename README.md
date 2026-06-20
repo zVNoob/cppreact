@@ -132,7 +132,6 @@ apt install libsdl2-dev libsdl2-image-dev libfreetype-dev libharfbuzz-dev libfon
 make test       # build + run tests
 make counter    # interactive counter demo
 make dashboard  # analytics dashboard demo
-make gallery    # image gallery demo
 make docs       # Doxygen documentation
 ```
 
