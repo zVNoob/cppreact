@@ -12,6 +12,7 @@
 #include <utility>
 
 namespace cppreact {
+  class renderer;
   namespace _storage {
 
     /** @brief Maps unique IDs to a deque of (arena, state) pairs, keyed by version index.
@@ -29,6 +30,7 @@ namespace cppreact {
        *  @param key The element's unique ID.
        *  @return Reference to the arena+state pair.
        */
+      renderer* current_renderer = nullptr;
       data& get(uint64_t key) {
         auto&t = _data[key];
         if (t.second.size() == t.first) t.second.emplace_back();

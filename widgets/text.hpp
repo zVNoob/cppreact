@@ -7,7 +7,6 @@
 #include "../internal/arena.hpp"
 #include "../internal/font.hpp"
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 namespace cppreact {
@@ -37,6 +36,7 @@ namespace cppreact {
      * @brief Text component that rasterizes and lays out glyphs from a font
      */
     class text : public component {
+      protected:
       /**
        * @brief A single placed glyph with its screen position
        */
@@ -47,6 +47,8 @@ namespace cppreact {
       _detail::sentence_output _rasterized;    ///< Rasterized glyph data from the font
       std::vector<placed_glyph> _placed;       ///< Laid-out glyph positions
       uint16_t _minimum_width = 0;             ///< Minimum width derived from word bounding widths
+      struct line_extent { uint16_t width; size_t glyph_start; size_t glyph_count; };
+      std::vector<line_extent> _lines;         ///< Per-line extents for alignment
     public:
       text(font* f, std::string_view text, _config::text_config cfg, std::source_location loc) :
         component(to_element_config(cfg), loc), _cfg(cfg), _f(f), _text(text) {}
@@ -67,7 +69,9 @@ namespace cppreact {
       }
 
       void on_fit_x() override {
-        _config.sizing.x.min = _minimum_width;
+        if (_minimum_width > _config.sizing.x.min)
+          _config.sizing.x.min = _minimum_width;
+        if (_rasterized.bounding_width > _config.sizing.x.max)
         _config.sizing.x.max = _rasterized.bounding_width;
         element::on_fit_x();
       }
@@ -77,6 +81,7 @@ namespace cppreact {
        */
       void on_fit_y() override {
         _placed.clear();
+        _lines.clear();
         // If no font or no rasterized words, zero height
         if (!_f || _rasterized.words.empty()) {
           _config.sizing.y = FIXED(0);
@@ -87,9 +92,12 @@ namespace cppreact {
         int16_t cur_y = 0;
         uint16_t line_h = _rasterized.bounding_height;
         uint16_t space_w = _f->space_width();
+        size_t line_start = 0;
         for (auto& word : _rasterized.words) {
           // Wrap to next line if word doesn't fit
           if (cur_x > 0 && cur_x + word.bounding_width > _box.width) {
+            _lines.push_back({uint16_t(cur_x), line_start, _placed.size() - line_start});
+            line_start = _placed.size();
             cur_x = 0;
             cur_y += line_h;
           }
@@ -97,8 +105,23 @@ namespace cppreact {
               _placed.push_back({g.txr, int16_t(cur_x + g.offset_x), int16_t(cur_y + g.offset_y)});
           cur_x += word.bounding_width + word.separator_count * space_w;
         }
+        _lines.push_back({uint16_t(cur_x), line_start, _placed.size() - line_start});
         _config.sizing.y = FIXED(uint16_t(std::max<int>(0, cur_y + line_h)));
         element::on_fit_y();
+      }
+
+      /**
+       * @brief Positions glyphs horizontally based on alignment
+       */
+      void on_child_pos_x() override {
+        if (_placed.empty() || _cfg.alignment.x == ALIGN_BEGIN) return component::on_child_pos_x();
+        for (auto& ln : _lines) {
+          if (ln.width >= _box.width) continue;
+          int16_t offset = int16_t((int(_box.width) - int(ln.width)) * _cfg.alignment.x);
+          if (offset <= 0) continue;
+          for (size_t i = ln.glyph_start; i < ln.glyph_start + ln.glyph_count; i++)
+            _placed[i].x += offset;
+        }
       }
 
       /**
@@ -131,7 +154,7 @@ namespace cppreact {
    * @param loc Source location for debugging
    * @return Pointer to the allocated text component
    */
-  inline _detail::text* text(_detail::font* f, std::string_view text, _config::text_config cfg, std::source_location loc = std::source_location::current()) {
+  inline _detail::text* text(_detail::font* f, std::string_view text, _config::text_config cfg = {.sizing = {GROW(), FIT()}}, std::source_location loc = std::source_location::current()) {
     cfg.sizing = {GROW(), FIT()};
     return _storage::allocate<_detail::text>(f, text, cfg, loc);
   }

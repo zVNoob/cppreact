@@ -41,7 +41,7 @@ namespace cppreact {
       int32_t _scroll_x = 0; ///< Accumulated horizontal scroll delta
       int32_t _scroll_y = 0; ///< Accumulated vertical scroll delta
       _storage::arena _cmd_arena{16*1024}; ///< Arena allocator for per-frame render commands
-      std::map<std::filesystem::path, std::shared_ptr<_detail::single_font>> _fonts_cache; ///< Cache of loaded single-font faces by file path
+      std::map<std::pair<std::filesystem::path, int>, std::shared_ptr<_detail::single_font>> _fonts_cache; ///< Cache of loaded single-font faces by file path and size
       std::source_location _loc; ///< Source location captured at construction for debugging
       std::set<std::shared_ptr<_detail::key>> _keys; ///< Registered keyboard shortcut handlers
       uint64_t _focus = 0; ///< ID of the currently focused widget (0 = none)
@@ -73,13 +73,13 @@ namespace cppreact {
         std::vector<std::shared_ptr<_detail::single_font>> fonts;
         for (auto& p : path)
           fonts.push_back(load_single_font(p, size));
-        return owner<_detail::font>(std::make_unique<_detail::font>(std::move(fonts), bold, italic));
+        return owner<_detail::font>(std::make_unique<_detail::font>(std::move(fonts), size, bold, italic));
       }
       /** @brief Register a keyboard-shortcut handler
        * @param keys Key combination that triggers the callback
        * @param func Callback invoked with the key combination and press/release state
        * @return Shared pointer that keeps the handler alive until unregistered */
-      std::shared_ptr<_detail::key> register_key(std::vector<keycode> keys, std::function<void(std::vector<keycode>, bool)> func) {
+      std::shared_ptr<_detail::key> register_key(std::vector<keycode> keys, std::function<void(std::vector<keycode>, bool, bool)> func) {
         auto k = std::make_shared<_detail::key>(keys, func);
         _keys.insert(k);
         return k;
@@ -125,9 +125,9 @@ namespace cppreact {
       /** @brief Forward a key event to all registered handlers
        * @param k Keycode that was pressed or released
        * @param down true if the key was pressed, false if released */
-      void set_key(keycode k, bool down) {
+      void set_key(keycode k, bool down, bool is_ime) {
         for (auto& key : _keys)
-          key.get()->on_key(k, down);
+          key.get()->on_key(k, down, is_ime);
       }
       /** @brief Update the current IME composition state
        * @param text The IME composition string
@@ -136,14 +136,15 @@ namespace cppreact {
         _ime_text.first = text;
         _ime_text.second = cursor;
       }
-      /** @brief Load a single font face from disk, caching it by path
+      /** @brief Load a single font face from disk, caching it by (path, size)
        * @param path Font file path
        * @param size Font size in pixels
        * @return Shared pointer to the loaded single-font face */
       std::shared_ptr<_detail::single_font> load_single_font(const std::filesystem::path& path, int size) {
-        if (_fonts_cache.find(path) == _fonts_cache.end())
-          _fonts_cache[path] = on_load_single_font(path, size);
-        return _fonts_cache[path];
+        auto key = std::make_pair(path, size);
+        if (_fonts_cache.find(key) == _fonts_cache.end())
+          _fonts_cache[key] = on_load_single_font(path, size);
+        return _fonts_cache[key];
       }
       void clear_font_cache() {_fonts_cache.clear();}
     protected:
@@ -158,6 +159,7 @@ namespace cppreact {
        * @param cfg Container configuration controlling sizing behaviour */
       void run_once(_detail::identifiable* root, _config::container_config cfg) {
         _storage::current_registry.reset();
+        _storage::current_registry.current_renderer = this;
         _cmd_arena.reset();
         _detail::stack actual_root(cfg,{root}, _loc);
         actual_root.on_update();
@@ -183,8 +185,7 @@ namespace cppreact {
             on_text_cmd(static_cast<_detail::text_render_command&>(*e));
           } else if (dynamic_cast<_detail::ime_render_command*>(e)) {
             on_ime_cmd(static_cast<_detail::ime_render_command&>(*e));
-            if (_ime_text.first.size() > 0)
-              static_cast<_detail::ime_render_command&>(*e).editing(_ime_text.first, _ime_text.second);
+            static_cast<_detail::ime_render_command&>(*e).editing(_ime_text.first, _ime_text.second);
           } else
           if (dynamic_cast<_detail::button_render_command*>(e))
             btn_cmds.push_back(static_cast<_detail::button_render_command*>(e));
@@ -198,6 +199,7 @@ namespace cppreact {
           if (on_scroll_cmd(*scr_cmds[i])) break;
         _scroll_x = 0;
         _scroll_y = 0;
+        _storage::current_registry.current_renderer = nullptr;
       }
       /** @brief Load a texture from disk (platform-specific)
        * @param path File path as a string

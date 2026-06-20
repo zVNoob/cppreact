@@ -2,7 +2,7 @@
 #include "container/vbox.hpp"
 #include "container/hbox.hpp"
 #include "container/viewport.hpp"
-#include "renderer/font_lookup.hpp"
+#include "renderer/lookup_font.hpp"
 #include "widgets/rect.hpp"
 #include "widgets/text.hpp"
 #include "renderer/sdl_renderer.hpp"

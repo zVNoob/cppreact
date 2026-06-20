@@ -46,7 +46,6 @@ namespace cppreact {
       FT_Face _face = nullptr;      ///< FreeType face handle
       hb_face_t* _hb_face = nullptr;///< HarfBuzz face handle
       hb_font_t* _hb_font = nullptr;///< HarfBuzz font handle
-      int _size;        ///< Requested font size in pixels
       bool _bold;       ///< Whether bold style is active
       bool _italic;     ///< Whether italic style is active
       float _scale = 1.0f; ///< Scale factor for bitmap-only fonts
@@ -66,7 +65,7 @@ namespace cppreact {
        *  @param italic Optional override for italic style (auto-detected if omitted).
        */
       single_font(std::filesystem::path path, int size, std::optional<bool> bold = std::nullopt, std::optional<bool> italic = std::nullopt)
-        : _size(size), _bold(false), _italic(false) {
+        : _bold(false), _italic(false) {
         if (FT_New_Face(ft_library(), path.c_str(), 0, &_face) == 0) {
           if (_face->units_per_EM == 0 && _face->num_fixed_sizes > 0) {
             FT_Select_Size(_face, 0);
@@ -91,7 +90,7 @@ namespace cppreact {
       single_font& operator=(const single_font&) = delete;
       single_font(single_font&& other) noexcept
         : _face(other._face), _hb_face(other._hb_face), _hb_font(other._hb_font),
-          _size(other._size), _bold(other._bold), _italic(other._italic),
+          _bold(other._bold), _italic(other._italic),
           _scale(other._scale), _cache(std::move(other._cache)) {
         other._face = nullptr;
         other._hb_face = nullptr;
@@ -133,7 +132,6 @@ namespace cppreact {
       }
 
       hb_font_t* hb_font() const { return _hb_font; }
-      int size() const { return _size; }
       bool bold() const { return _bold; }
       bool italic() const { return _italic; }
       float advance_scale() const { return _scale; }
@@ -249,6 +247,7 @@ namespace cppreact {
     class font {
       std::vector<std::shared_ptr<single_font>> _fonts; ///< Available font faces
       std::string _separator; ///< Characters treated as word separators
+      uint16_t _size;        ///< Font size
       bool _bold;   ///< Default bold style
       bool _italic; ///< Default italic style
 
@@ -294,8 +293,8 @@ namespace cppreact {
        *  @param italic Default italic style flag.
        *  @param separator Characters treated as word separators.
        */
-      font(std::vector<std::shared_ptr<single_font>>&& fonts, bool bold = false, bool italic = false, std::string separator = " ")
-        : _fonts(fonts), _bold(bold), _italic(italic), _separator(separator) {}
+      font(std::vector<std::shared_ptr<single_font>>&& fonts, uint16_t size, bool bold = false, bool italic = false, std::string separator = " ")
+        : _fonts(fonts), _size(size), _bold(bold), _italic(italic), _separator(separator) {}
 
       /** @brief Measure the width of a space character. */
       uint16_t space_width() {
@@ -303,6 +302,8 @@ namespace cppreact {
         if (fg.font) return fg.font->get_or_rasterize(fg.glyph_id).metrics.advance_x;
         return 8;
       }
+
+      uint16_t height() { return _size; }
 
       /** @brief Rasterize a UTF-8 string into positioned words with full shaping.
        *
@@ -329,7 +330,7 @@ namespace cppreact {
           single_font* best = nullptr;
           for (auto& f : _fonts)
             if (f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
-          if (!best) { i++; continue; }
+          if (!best) { runs.push_back({_fonts[0].get(), i, 1}); i++; continue; }
           size_t start = i;
           while (i < cps.size() && best->has_glyph(cps[i], _bold, _italic)) i++;
           runs.push_back({best, start, i - start});
@@ -348,6 +349,21 @@ namespace cppreact {
             else if (cp < 0x10000) { u8 += (char)(0xE0 | (cp >> 12)); u8 += (char)(0x80 | ((cp >> 6) & 0x3F)); u8 += (char)(0x80 | (cp & 0x3F)); }
             else { u8 += (char)(0xF0 | (cp >> 18)); u8 += (char)(0x80 | ((cp >> 12) & 0x3F)); u8 += (char)(0x80 | ((cp >> 6) & 0x3F)); u8 += (char)(0x80 | (cp & 0x3F)); }
           }
+          // Build byte-offset → codepoint-index lookup for the u8 string
+          // (HarfBuzz clusters are byte offsets, but we need codepoint indices)
+          std::vector<size_t> byte_to_cp;
+          {
+            size_t byte_pos = 0;
+            for (size_t ci = 0; ci < r.count; ci++) {
+              byte_to_cp.resize(byte_pos + 1);  // only need entries at start bytes
+              byte_to_cp[byte_pos] = ci;
+              auto cp = cps[r.start + ci];
+              if (cp < 0x80) byte_pos += 1;
+              else if (cp < 0x800) byte_pos += 2;
+              else if (cp < 0x10000) byte_pos += 3;
+              else byte_pos += 4;
+            }
+          }
           auto* buf = hb_buffer_create();
           hb_buffer_add_utf8(buf, u8.c_str(), -1, 0, -1);
           hb_buffer_guess_segment_properties(buf);
@@ -357,8 +373,8 @@ namespace cppreact {
           auto* pos_ = hb_buffer_get_glyph_positions(buf, &n);
           float asc = r.font->advance_scale();
           for (unsigned i = 0; i < n; i++) {
-            size_t idx = r.start + infos[i].cluster;
-            if (idx >= cps.size()) idx = cps.size() - 1;
+            size_t cluster = infos[i].cluster;
+            size_t idx = cluster < byte_to_cp.size() ? r.start + byte_to_cp[cluster] : cps.size() - 1;
             int16_t adv = int16_t(((double)pos_[i].x_advance / 64) * asc);
             positioned.push_back({cps[idx], r.font, uint32_t(infos[i].codepoint),
               int16_t(cursor_x + ((double)pos_[i].x_offset / 64) * asc), int16_t(((double)pos_[i].y_offset / 64) * asc),
@@ -440,6 +456,7 @@ namespace cppreact {
           }
           w.bounding_height = uint16_t(std::max<int16_t>(0, w_max_b));
         }
+        sentence_right += int16_t(consec_sep) * sep_adv;
         out.bounding_width = uint16_t(std::max<int16_t>(0, sentence_right));
         for (auto& w : out.words)
           out.bounding_height = std::max(out.bounding_height, w.bounding_height);

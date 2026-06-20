@@ -4,6 +4,7 @@
  *  @brief SDL2 concrete renderer implementation */
 
 #include "SDL_blendmode.h"
+#include "SDL_keycode.h"
 #include "sized_renderer.hpp"
 #include "../internal/font.hpp"
 #include "../internal/ime.hpp"
@@ -91,6 +92,7 @@ namespace cppreact {
     SDL_Window* _window = nullptr;   ///< SDL window handle
     SDL_Renderer* _renderer = nullptr; ///< SDL renderer handle
     bool _running = false;             ///< Whether the main loop is still running
+    bool is_shift_pressed = false;     ///< Whether the Shift key is currently pressed
 
     /** @brief Initialise SDL subsystems, create window and accelerated renderer
      * @param title Window title
@@ -182,7 +184,7 @@ namespace cppreact {
             scroll_delta_y += event.wheel.y;
           }
           else if (event.type == SDL_TEXTINPUT) {
-            set_editing(event.text.text, 0);
+            set_editing("", 0);
             // Decode UTF-8 bytes, normalise to uppercase, emit as key press/release
             for (const char* p = event.text.text; *p; ) {
               unsigned char c = (unsigned char)*p;
@@ -192,30 +194,32 @@ namespace cppreact {
               else if ((c & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) { cp = ((c & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F); p += 3; }
               else if ((c & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80) { cp = ((c & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F); p += 4; }
               else { p++; continue; }
-              if (cp >= 'a' && cp <= 'z') cp -= 32;
-              set_key(keycode(cp), true);
-              set_key(keycode(cp), false);
+              //if (cp >= 'a' && cp <= 'z') cp -= 32;
+              set_key(keycode(cp), true, true);
+              set_key(keycode(cp), false, true);
             }
           }
           else if (event.type == SDL_TEXTEDITING) {
             set_editing(event.edit.text, event.edit.start);
           }
           else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-            if (event.key.repeat) continue;
+            // if (event.key.repeat) continue;
             auto sym = event.key.keysym.sym;
             uint32_t sdl = uint32_t(sym);
             keycode kc = keycode::UNKNOWN;
+            if (sdl == SDLK_LSHIFT || sdl == SDLK_RSHIFT) 
+              is_shift_pressed = event.type == SDL_KEYDOWN;
             // Map SDL key symbols to internal keycodes
             if (sdl == 8)      kc = keycode::BACKSPACE;
             else if (sdl == 9)  kc = keycode::TAB;
             else if (sdl == 13) kc = keycode::ENTER;
             else if (sdl == 27) kc = keycode::ESCAPE;
             else if (sdl == 127) kc = keycode::DEL;
-            else if (sdl >= 'a' && sdl <= 'z') kc = keycode(sdl - 32);
+            else if (sdl >= 'a' && sdl <= 'z') {if (is_shift_pressed) kc = keycode(sdl - 32);}
             else if (sdl >= 0x20 && sdl <= 0x10FFFF) kc = keycode(sdl);
             else if (sdl >= 0x40000000) kc = keycode((sdl & 0xFFFF) + 0x110000);
             if (kc != keycode::UNKNOWN)
-              set_key(kc, event.type == SDL_KEYDOWN);
+              set_key(kc, event.type == SDL_KEYDOWN, false);
           }
         }
         set_cursor(mouse_mask, mouse_x, mouse_y);
