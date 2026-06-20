@@ -17,6 +17,7 @@
 #include "widgets/rect.hpp"
 #include "input/button_full.hpp"
 #include "renderer/sdl_renderer.hpp"
+#include "renderer/font_lookup.hpp"
 
 using namespace cppreact;
 namespace fs = std::filesystem;
@@ -24,7 +25,7 @@ namespace fs = std::filesystem;
 int main() {
   sdl_renderer r({400, 300}, "cppreact Demo");
 
-  auto font = r.load_font({fs::path("./tests/NotoSans-Variable.ttf")}, 20);
+  auto font = r.load_font(lookup_font("Noto Sans"), 20);
   auto title = r.load_font({fs::path("./tests/NotoSans-Variable.ttf")}, 28);
 
   auto make_button = [&](const char* label, color col, auto action) {
