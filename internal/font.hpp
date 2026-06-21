@@ -5,7 +5,9 @@
 #pragma once
 
 #include "texture.hpp"
+#include <cctype>
 #include <ft2build.h>
+#include <iostream>
 #include FT_FREETYPE_H
 #include <harfbuzz/hb.h>
 #include <harfbuzz/hb-ft.h>
@@ -288,6 +290,13 @@ namespace cppreact {
         i += 1; return 0xFFFD;
       }
 
+      /** @brief Check if a codepoint is in a known emoji range. */
+      static bool is_emoji(uint32_t cp) {
+        return (cp >= 0x2600 && cp <= 0x27BF) ||
+               (cp >= 0x1F000 && cp <= 0x1FAFF) ||
+               cp == 0x200D || cp == 0xFE0F;
+      }
+
     public:
       /** @brief Construct a multi-font collection.
        *  @param fonts List of font faces in priority order.
@@ -306,6 +315,11 @@ namespace cppreact {
       }
 
       uint16_t height() { return _size; }
+
+      /** @brief Ascender from the primary font (distance from baseline to top, positive). */
+      int ascender() { return _fonts.empty() ? 0 : _fonts[0]->ascender(); }
+      /** @brief Descender from the primary font (distance from baseline to bottom, typically negative). */
+      int descender() { return _fonts.empty() ? 0 : _fonts[0]->descender(); }
 
       /** @brief Rasterize a UTF-8 string into positioned words with full shaping.
        *
@@ -330,17 +344,18 @@ namespace cppreact {
         std::vector<run> runs;
         for (size_t i = 0; i < cps.size();) {
           single_font* best = nullptr;
-          // Prefer color fonts
-          for (auto& f : _fonts)
-            if (f->has_color() && f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
+          // Prefer color fonts for emoji codepoints
+          if (is_emoji(cps[i]))
+            for (auto& f : _fonts)
+              if (f->has_color() && f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
           if (!best)
             for (auto& f : _fonts)
               if (f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
           if (!best) { runs.push_back({_fonts[0].get(), i, 1}); i++; continue; }
           size_t start = i;
           while (i < cps.size() && best->has_glyph(cps[i], _bold, _italic)) {
-            // If best is not a color font but a color font has this codepoint, break the run
-            if (!best->has_color()) {
+            // Break run when a non-color font encounters an emoji available in a color font
+            if (is_emoji(cps[i]) && !best->has_color()) {
               bool color_has = false;
               for (auto& f : _fonts)
                 if (f.get() != best && f->has_color() && f->has_glyph(cps[i], _bold, _italic)) { color_has = true; break; }
@@ -448,28 +463,27 @@ namespace cppreact {
           if (fg.font) sep_adv = fg.font->get_or_rasterize(fg.glyph_id).metrics.advance_x;
         }
         int16_t sentence_right = 0;
-        int16_t global_min_y = 0;
         for (auto& w : out.words) {
           sentence_right += int16_t(w.separator_count) * sep_adv;
-          int16_t w_max_r = 0, w_min_y = 0, w_max_b = 0;
+          int16_t w_max_r = 0;
           for (auto& g : w.glyphs) {
             int wd = g.txr ? g.txr->width() : 0;
-            int ht = g.txr ? g.txr->height() : 0;
             w_max_r = std::max<int16_t>(w_max_r, g.offset_x + wd);
-            w_min_y = std::min<int16_t>(w_min_y, g.offset_y);
-            w_max_b = std::max<int16_t>(w_max_b, g.offset_y + ht);
           }
-          global_min_y = std::min(global_min_y, w_min_y);
           w.bounding_width = uint16_t(std::max<int16_t>(0, w_max_r));
           sentence_right += w.bounding_width;
         }
+        // Normalize glyph Y positions to primary font's ascender — stable baseline, no content-dependent shift
+        int16_t primary_asc = _fonts.empty() ? 0 : _fonts[0]->ascender();
         for (auto& w : out.words) {
-          int16_t w_max_b = 0;
+          int16_t w_min = INT16_MAX, w_max_b = 0;
           for (auto& g : w.glyphs) {
-            g.offset_y -= global_min_y;
-            w_max_b = std::max<int16_t>(w_max_b, int16_t(g.offset_y + (g.txr ? g.txr->height() : 0)));
+            g.offset_y += primary_asc;
+            int16_t ht = g.txr ? int16_t(g.txr->height()) : 0;
+            w_min = std::min(w_min, g.offset_y);
+            w_max_b = std::max<int16_t>(w_max_b, g.offset_y + ht);
           }
-          w.bounding_height = uint16_t(std::max<int16_t>(0, w_max_b));
+          w.bounding_height = uint16_t(std::max<int16_t>(0, w_max_b - std::min<int16_t>(0, w_min)));
         }
         sentence_right += int16_t(consec_sep) * sep_adv;
         out.bounding_width = uint16_t(std::max<int16_t>(0, sentence_right));

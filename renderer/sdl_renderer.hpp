@@ -155,6 +155,7 @@ namespace cppreact {
       uint16_t mouse_mask = 0;
       int mouse_x = 0, mouse_y = 0;
       while (_running) {
+        _is_ime_active = false;
         int32_t scroll_delta_x = 0, scroll_delta_y = 0;
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -436,6 +437,7 @@ namespace cppreact {
           fprintf(stderr, "SDL_RenderCopy error: %s\n", SDL_GetError());
       }
     }
+    bool _is_ime_active;
     /** @brief Set up SDL text-input callbacks for an IME command
      * @param cmd IME render command receiving start/end callbacks */
     void on_ime_cmd(_detail::ime_render_command& cmd) override {
@@ -443,10 +445,11 @@ namespace cppreact {
       cmd.callback.start = [this, r]() {
         SDL_SetTextInputRect(&r);
         SDL_StartTextInput();
+        _is_ime_active = true;
       };
       cmd.callback.end = [this]() {
+        if (_is_ime_active) return;
         SDL_StopTextInput();
-        set_editing("", 0);
       };
     }
     /** @brief Render a glyph texture using SDL colour modulation

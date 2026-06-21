@@ -33,8 +33,8 @@ int main() {
       rect({.col = {50, 50, 80}, .radius = 4, .sizing = {FIXED(4), GROW()}}),
       vbox({.sizing = {GROW(), FIT()}, .spacing = 2}, {
         text(font_body, text_str, {.col = {200, 200, 220}}),
-        text(font_label, time_str, {.col = {140, 140, 160}}),
-      }),
+        text(font_label, time_str, {.col = {140, 140, 160}})
+      })
     });
   };
 
@@ -54,8 +54,8 @@ int main() {
           rect({.col = {35, 35, 55}, .radius = 8, .sizing = {GROW(), FIT()}, .padding = PAD(16)},
             text(font_heading, "Recent Activity", {.col = {210, 210, 230}})
           ),
-          viewport({.sizing = {GROW(), GROW()}, .scroll_y = 0},
-            vbox({.sizing = {GROW(), FIT()}, .spacing = 0}, {
+          scroll({.sizing = {GROW(), GROW()}, .scroll_y = 0},
+            vbox({.sizing = {GROW(), GROW()}, .spacing = 5}, {
               activity_item("User john_doe signed up", "2 min ago"),
               rect({.col = {40, 40, 60}, .radius = 0, .sizing = {GROW(), 1}}),
               activity_item("New order #4582 placed", "15 min ago"),
