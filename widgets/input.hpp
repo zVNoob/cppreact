@@ -67,6 +67,12 @@ namespace cppreact {
         _reg_state = &_storage::current_registry.get(id()).second;
       }
 
+      std::string content() {
+        _reg_state->reset();
+        auto content = _reg_state->get<std::string>("");
+        return content;
+      }
+
       void on_update() override {
         element::on_update();
         _config = to_element_config(_cfg);

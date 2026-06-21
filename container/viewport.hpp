@@ -5,7 +5,10 @@
 
 #include "../internal/container.hpp"
 #include "../internal/arena.hpp"
+#include "../internal/state.hpp"
+#include "../widgets/scrolling.hpp"
 #include "stack.hpp"
+#include "func.hpp"
 #include <cstdint>
 
 namespace cppreact {
@@ -56,6 +59,16 @@ namespace cppreact {
     private:
       _config::scroll_specific_config _scroll_cfg; ///< Scroll offset configuration
     public:
+      void on_fit_x() override {
+        for (auto e : elements()) {
+          e->on_fit_x();
+        }
+      }
+      void on_fit_y() override {
+        for (auto e : elements()) {
+          e->on_fit_y();
+        }
+      }
       /** @brief Construct a viewport with scroll configuration, a single child, and source location.
        *  @param cfg Scroll configuration including scroll offsets
        *  @param children The single child element
@@ -101,5 +114,41 @@ namespace cppreact {
    *  @return Pointer to the allocated viewport */
   inline _detail::viewport* viewport(_config::scroll_config cfg, _detail::identifiable* children, std::source_location loc = std::source_location::current()) {
     return _storage::allocate<_detail::viewport>(cfg, children, loc);
+  }
+
+  /** @brief Allocate a scrollable viewport with built-in mouse-wheel scroll handling.
+   *
+   *  Wraps a viewport inside a func that maintains scroll offsets in per-instance
+   *  state. A scroll handler overlay captures wheel events and updates the offsets
+   *  automatically.
+   *  @param cfg Scroll configuration (initial scroll offsets, sizing, etc.)
+   *  @param children The single child element to scroll
+   *  @param loc Source location for diagnostics
+   *  @return Pointer to the allocated func component */
+  inline _detail::func* scroll(_config::scroll_config cfg, _detail::identifiable* children, std::source_location loc = std::source_location::current()) {
+    return func([cfg, children, loc](state& s, _detail::func*) mutable -> _detail::element* {
+      auto scroll_x = s.get<int32_t>(cfg.scroll_x);
+      auto scroll_y = s.get<int32_t>(cfg.scroll_y);
+
+      cfg.scroll_x = scroll_x;
+      cfg.scroll_y = scroll_y;
+
+      auto vcfg = cfg;
+      vcfg.sizing = {GROW(), GROW()};
+      vcfg.margin = {0, 0, 0, 0};
+      vcfg.alignment = {0, 0};
+      auto vp = viewport(vcfg, children, loc);
+      auto sc = scrolling({.sizing = {GROW(), GROW()}},
+        [scroll_x, scroll_y](int32_t dx, int32_t dy) {
+          scroll_x = std::max(0, scroll_x - dx * 10);
+          scroll_y = std::max(0, scroll_y - dy * 10);
+        }, loc
+      );
+
+      auto scfg = cfg;
+      scfg.padding = {0, 0, 0, 0};
+      scfg.spacing = 0;
+      return stack(_config::to_container_config(scfg), {vp, sc}, loc);
+    }, loc);
   }
 }

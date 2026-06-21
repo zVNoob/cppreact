@@ -459,7 +459,8 @@ namespace cppreact {
       auto* stxr = static_cast<sdl_texture*>(cmd.glyphs);
       if (stxr) {
         SDL_SetTextureBlendMode(stxr->get_sdl_texture(), SDL_BLENDMODE_BLEND);
-        SDL_SetTextureColorMod(stxr->get_sdl_texture(), cmd.col.r, cmd.col.g, cmd.col.b);
+        if (!cmd.is_color)
+          SDL_SetTextureColorMod(stxr->get_sdl_texture(), cmd.col.r, cmd.col.g, cmd.col.b);
         if (SDL_RenderCopy(_renderer, stxr->get_sdl_texture(), &src, &dst) != 0)
           fprintf(stderr, "SDL_RenderCopy error: %s\n", SDL_GetError());
         // Reset colour modulation to avoid affecting later renders of this texture

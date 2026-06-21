@@ -55,7 +55,7 @@ namespace cppreact {
    * @param loc Source location for debugging
    * @return Pointer to the allocated scroll_simple component
    */
-  inline _detail::scroll_simple* scroll(_config::scroll_simple_config cfg, scroll_lambda func, std::source_location loc = std::source_location::current()) {
+  inline _detail::scroll_simple* scrolling(_config::scroll_simple_config cfg, scroll_lambda func, std::source_location loc = std::source_location::current()) {
     return _storage::allocate<_detail::scroll_simple>(cfg, func, loc);
   }
 }

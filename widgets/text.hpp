@@ -30,7 +30,8 @@ namespace cppreact {
       public:
       texture* glyphs;     ///< The glyph texture to draw
       color col = {255, 255, 255, 255};    ///< Tint color for the glyph
-      text_render_command(texture* glyphs, bounding_box box, color col) : render_command(box), glyphs(glyphs), col(col) {}
+      bool is_color = false; ///< Whether this glyph comes from a color font
+      text_render_command(texture* glyphs, bounding_box box, color col, bool is_color = false) : render_command(box), glyphs(glyphs), col(col), is_color(is_color) {}
     };
     /**
      * @brief Text component that rasterizes and lays out glyphs from a font
@@ -40,7 +41,7 @@ namespace cppreact {
       /**
        * @brief A single placed glyph with its screen position
        */
-      struct placed_glyph { texture* txr; int16_t x; int16_t y; };
+      struct placed_glyph { texture* txr; int16_t x; int16_t y; bool is_color = false; };
       _config::text_config _cfg;               ///< Text configuration
       font* _f;                                ///< The font to use (borrowed, caller keeps owner alive)
       std::string _text;                       ///< The text string to render
@@ -102,7 +103,7 @@ namespace cppreact {
             cur_y += line_h;
           }
           for (auto& g : word.glyphs)
-              _placed.push_back({g.txr, int16_t(cur_x + g.offset_x), int16_t(cur_y + g.offset_y)});
+              _placed.push_back({g.txr, int16_t(cur_x + g.offset_x), int16_t(cur_y + g.offset_y), g.is_color});
           cur_x += word.bounding_width + word.separator_count * space_w;
         }
         _lines.push_back({uint16_t(cur_x), line_start, _placed.size() - line_start});
@@ -138,7 +139,7 @@ namespace cppreact {
           auto clipped = clip(render_box, gbox);
           if (clipped.width <= 0 || clipped.height <= 0) continue;
           cmds.push_back(_storage::allocate<text_render_command>(
-            g.txr, clipped, _cfg.col
+            g.txr, clipped, _cfg.col, g.is_color
           ));
         }
         return cmds;

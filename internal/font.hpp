@@ -137,6 +137,7 @@ namespace cppreact {
       float advance_scale() const { return _scale; }
       int ascender() const { return _face ? _face->size->metrics.ascender >> 6 : 0; }
       int descender() const { return _face ? _face->size->metrics.descender >> 6 : 0; }
+      bool has_color() const { return _face && FT_HAS_COLOR(_face); }
 
     protected:
       /** @brief Create a texture from raw pixel data. Implemented by renderer backends. */
@@ -221,6 +222,7 @@ namespace cppreact {
       cppreact::texture* txr; ///< Glyph texture
       int16_t offset_x; ///< Horizontal screen offset
       int16_t offset_y; ///< Vertical screen offset
+      bool is_color = false; ///< Whether this glyph comes from a color font
     };
 
     /** @brief A word consisting of positioned glyphs, with bounding box and separator info. */
@@ -328,11 +330,24 @@ namespace cppreact {
         std::vector<run> runs;
         for (size_t i = 0; i < cps.size();) {
           single_font* best = nullptr;
+          // Prefer color fonts
           for (auto& f : _fonts)
-            if (f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
+            if (f->has_color() && f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
+          if (!best)
+            for (auto& f : _fonts)
+              if (f->has_glyph(cps[i], _bold, _italic)) { best = f.get(); break; }
           if (!best) { runs.push_back({_fonts[0].get(), i, 1}); i++; continue; }
           size_t start = i;
-          while (i < cps.size() && best->has_glyph(cps[i], _bold, _italic)) i++;
+          while (i < cps.size() && best->has_glyph(cps[i], _bold, _italic)) {
+            // If best is not a color font but a color font has this codepoint, break the run
+            if (!best->has_color()) {
+              bool color_has = false;
+              for (auto& f : _fonts)
+                if (f.get() != best && f->has_color() && f->has_glyph(cps[i], _bold, _italic)) { color_has = true; break; }
+              if (color_has) break;
+            }
+            i++;
+          }
           runs.push_back({best, start, i - start});
         }
 
@@ -417,7 +432,7 @@ namespace cppreact {
           if (cur.glyphs.empty()) word_origin = p.x;
           auto& e = p.font->get_or_rasterize(p.glyph_id);
           if (e.txr)
-            cur.glyphs.push_back({e.txr.get(), int16_t(p.x + e.metrics.bearing_x), int16_t(p.y - e.metrics.bearing_y)});
+            cur.glyphs.push_back({e.txr.get(), int16_t(p.x + e.metrics.bearing_x), int16_t(p.y - e.metrics.bearing_y), p.font->has_color()});
         }
         if (!cur.glyphs.empty()) {
           if (consec_sep)

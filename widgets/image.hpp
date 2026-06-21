@@ -73,6 +73,7 @@ namespace cppreact {
       protected:
       void on_fit_x() override {
         _config = to_element_config(_cscfg);
+        if (!_cscfg.keep_aspect_ratio) _config.sizing.x.min = std::max(_config.sizing.x.min, _txr->width());
         element::on_fit_x();
       }
       void on_fit_y() override {
@@ -80,6 +81,7 @@ namespace cppreact {
           // Scale height proportionally to the texture aspect ratio
           _config.sizing.y = FIXED(std::clamp(uint16_t(_box.width * _txr->width() / _txr->height()), _cscfg.sizing.y.min, _cscfg.sizing.y.max));
         }
+        else _config.sizing.y.min = std::max(_config.sizing.y.min, _txr->height());
         element::on_fit_y();
       }
       void on_child_grow_y() override {
