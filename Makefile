@@ -15,13 +15,11 @@ dashboard: examples/dashboard
 counter: examples/counter
 	./examples/counter
 
-gallery: examples/gallery
-	./examples/gallery
 
 docs:
 	doxygen
 
-.PHONY: test docs dashboard counter gallery
+.PHONY: test docs dashboard counter
 
 -include tests/*.d
 -include examples/*.d

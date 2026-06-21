@@ -85,13 +85,13 @@ namespace cppreact {
         _lines.clear();
         // If no font or no rasterized words, zero height
         if (!_f || _rasterized.words.empty()) {
-          _config.sizing.y = FIXED(0);
+          _config.sizing.y = FIXED(uint16_t(std::max(0, _f->ascender() - _f->descender())));
           element::on_fit_y();
           return;
         }
         int16_t cur_x = 0;
         int16_t cur_y = 0;
-        uint16_t line_h = _rasterized.bounding_height;
+        uint16_t line_h = uint16_t(std::max<int>(_rasterized.bounding_height, _f->ascender() - _f->descender()));
         uint16_t space_w = _f->space_width();
         size_t line_start = 0;
         for (auto& word : _rasterized.words) {
@@ -107,7 +107,7 @@ namespace cppreact {
           cur_x += word.bounding_width + word.separator_count * space_w;
         }
         _lines.push_back({uint16_t(cur_x), line_start, _placed.size() - line_start});
-        _config.sizing.y = FIXED(uint16_t(std::max<int>(0, cur_y + line_h)));
+        _config.sizing.y = FIXED(uint16_t(std::max<int>(line_h, cur_y + line_h)));
         element::on_fit_y();
       }
 

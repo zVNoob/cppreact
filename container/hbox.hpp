@@ -36,12 +36,13 @@ namespace cppreact {
       }
       /** @brief Compute the fit height as the maximum child height plus padding. */
       void on_fit_y() override {
-        int32_t height = _container_config.padding.top + _container_config.padding.bottom;
+        int32_t height = 0;
         for (auto child : elements()) {
           child->on_fit_y();
           int32_t child_height = box(*child).height + child->element_config().margin.top + child->element_config().margin.bottom;
           height = std::max(height, child_height);
         }
+        height += _container_config.padding.top + _container_config.padding.bottom;
         _box.height = uint16_t(std::clamp(height, int32_t(_config.sizing.y.min), int32_t(_config.sizing.y.max)));
       }
       /** @brief Grow children horizontally using iterative weighted distribution.

@@ -85,6 +85,7 @@ namespace cppreact {
         auto processed = _reg_state->get<std::set<uint32_t>>({});
         auto composition = _reg_state->get<std::string>("");
         auto composition_cursor = _reg_state->get<int>(0);
+        auto old_focused = _reg_state->get<bool>(false);
 
         processed->clear();
 
@@ -147,14 +148,18 @@ namespace cppreact {
             );
             key_handle = handle;
           }
-          ime_cb->start();
+          if (!old_focused) {
+            ime_cb->start();
+            old_focused = focused;
+          }
         } else {
-          ime_cb->end();
+          if (old_focused) ime_cb->end();
           if (key_handle.operator->()->get() != nullptr) {
             auto kh = *key_handle.operator->();
             renderer->unregister_key(kh);
             key_handle = std::shared_ptr<_detail::key>(nullptr);
           }
+          if (old_focused) old_focused = false;
         }
       }
 

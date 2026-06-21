@@ -26,12 +26,13 @@ namespace cppreact {
         container(cfg, children, loc) {}
       /** @brief Compute the fit width as the maximum child width plus padding. */
       void on_fit_x() override {
-        int32_t width = _container_config.padding.left + _container_config.padding.right;
+        int32_t width = 0;
         for (auto child : elements()) {
           child->on_fit_x();
           int32_t child_width = box(*child).width + child->element_config().margin.left + child->element_config().margin.right;
           width = std::max(width, child_width);
         }
+        width += _container_config.padding.left + _container_config.padding.right;
         _box.width = uint16_t(std::clamp<int32_t>(width, _config.sizing.x.min, _config.sizing.x.max));
       }
       /** @brief Compute the fit height as the sum of child heights plus spacing and padding. */

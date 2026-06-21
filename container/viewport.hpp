@@ -16,6 +16,8 @@ namespace cppreact {
     #define CPPREACT_SCROLL_CONFIG \
       int32_t scroll_x = 0; \
       int32_t scroll_y = 0; \
+      uint32_t* content_width_limit = nullptr; \
+      uint32_t* content_height_limit = nullptr; \
 
     /** @brief Full configuration for a scrollable viewport, including scroll offsets. */
     struct scroll_config {
@@ -46,6 +48,8 @@ namespace cppreact {
       scroll_specific_config sc;
       sc.scroll_x = cfg.scroll_x;
       sc.scroll_y = cfg.scroll_y;
+      sc.content_width_limit = cfg.content_width_limit;
+      sc.content_height_limit = cfg.content_height_limit;
       return sc;
     }
   }
@@ -74,9 +78,18 @@ namespace cppreact {
        *  @param children The single child element
        *  @param loc Source location for diagnostics */
       viewport(_config::scroll_config cfg, identifiable* children, std::source_location loc) :
-        stack(to_container_config(cfg), {children}, loc), _scroll_cfg(to_scroll_specific_config(cfg)) {}
+        stack(to_container_config(cfg), {children}, loc), _scroll_cfg(to_scroll_specific_config(cfg)) {
+        }
       /** @brief Position children horizontally with scroll offset applied. */
       void on_child_pos_x() override {
+        if (elements().empty()) { return; }
+        if (_scroll_cfg.content_width_limit) {
+          int32_t temp = box(*elements().front()).width + 
+            elements().front()->element_config().margin.left + 
+            elements().front()->element_config().margin.right - 
+            _box.width;
+          *_scroll_cfg.content_width_limit = std::max(0, temp);
+        }
         for (auto e : elements()) {
           int32_t w = box(*e).width + e->element_config().margin.left + e->element_config().margin.right;
           int32_t aw = _box.width - _container_config.padding.left - _container_config.padding.right;
@@ -88,6 +101,14 @@ namespace cppreact {
       }
       /** @brief Position children vertically with scroll offset applied. */
       void on_child_pos_y() override {
+        if (elements().empty()) { return; }
+        if (_scroll_cfg.content_height_limit) {
+          int32_t temp = box(*elements().front()).height + 
+            elements().front()->element_config().margin.top + 
+            elements().front()->element_config().margin.bottom - 
+            _box.height;
+          *_scroll_cfg.content_height_limit = std::max(0, temp);
+        }
         for (auto e : elements()) {
           int32_t h = box(*e).height + e->element_config().margin.top + e->element_config().margin.bottom;
           int32_t ah = _box.height - _container_config.padding.top - _container_config.padding.bottom;
@@ -129,9 +150,13 @@ namespace cppreact {
     return func([cfg, children, loc](state& s, _detail::func*) mutable -> _detail::element* {
       auto scroll_x = s.get<int32_t>(cfg.scroll_x);
       auto scroll_y = s.get<int32_t>(cfg.scroll_y);
+      const uint32_t& content_width = s.get<uint32_t>(100);
+      const uint32_t& content_height = s.get<uint32_t>(100);
 
       cfg.scroll_x = scroll_x;
       cfg.scroll_y = scroll_y;
+      cfg.content_width_limit = &const_cast<uint32_t&>(content_width);
+      cfg.content_height_limit = &const_cast<uint32_t&>(content_height);
 
       auto vcfg = cfg;
       vcfg.sizing = {GROW(), GROW()};
@@ -139,9 +164,9 @@ namespace cppreact {
       vcfg.alignment = {0, 0};
       auto vp = viewport(vcfg, children, loc);
       auto sc = scrolling({.sizing = {GROW(), GROW()}},
-        [scroll_x, scroll_y](int32_t dx, int32_t dy) {
-          scroll_x = std::max(0, scroll_x - dx * 10);
-          scroll_y = std::max(0, scroll_y - dy * 10);
+        [scroll_x, scroll_y, content_width, content_height](int32_t dx, int32_t dy) {
+          scroll_x = std::clamp((int32_t)(scroll_x - dx * 10), 0, (int32_t)content_width);
+          scroll_y = std::clamp((int32_t)(scroll_y - dy * 10), 0, (int32_t)content_height);
         }, loc
       );
 
