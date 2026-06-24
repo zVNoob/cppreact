@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+set_and_check(cppreact_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@/cppreact")
+
+include("${CMAKE_CURRENT_LIST_DIR}/cppreactTargets.cmake")
+
+# The targets exported above are: cppreact::cppreact_common
+# Renderer-specific targets (if present):
+#   cppreact::cppreact_sdl   (SDL2 backend)
+#   cppreact::cppreact_sfml  (SFML backend)
+
+# If the downstream project simply wants "the available one":
+if(TARGET cppreact::cppreact_sdl)
+  set(cppreact_RENDERER "SDL" CACHE STRING "cppreact renderer backend")
+elseif(TARGET cppreact::cppreact_sfml)
+  set(cppreact_RENDERER "SFML" CACHE STRING "cppreact renderer backend")
+endif()
+
+check_required_components(cppreact)

@@ -187,15 +187,12 @@ namespace cppreact {
             else if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel)
               scroll_delta_x += int32_t(event.mouseWheelScroll.delta);
           } else if (event.type == sf::Event::TextEntered) {
-            // TextEntered gives the Unicode codepoint directly — normalise to uppercase
             uint32_t cp = event.text.unicode;
-            if (cp >= 'a' && cp <= 'z') cp -= 32;
-            set_key(keycode(cp), true);
-            set_key(keycode(cp), false);
+            set_key(keycode(cp), true, true);
+            set_key(keycode(cp), false, true);
           } else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
             auto code = event.key.code;
             keycode kc = keycode::UNKNOWN;
-            // Printable keys from the SFML key enum
             if (code >= sf::Keyboard::A && code <= sf::Keyboard::Z)
               kc = keycode('A' + (code - sf::Keyboard::A));
             else if (code >= sf::Keyboard::Num0 && code <= sf::Keyboard::Num9)
@@ -205,7 +202,7 @@ namespace cppreact {
             else
               kc = sfml_key_to_keycode(code);
             if (kc != keycode::UNKNOWN)
-              set_key(kc, event.type == sf::Event::KeyPressed);
+              set_key(kc, event.type == sf::Event::KeyPressed, false);
           }
         }
         set_cursor(mouse_mask, mouse_x, mouse_y);
@@ -447,7 +444,10 @@ namespace cppreact {
       sprite.setTextureRect(sf::IntRect(cmd.box.offset_x, cmd.box.offset_y,
                                         cmd.box.width, cmd.box.height));
       sprite.setPosition(cmd.box.x, cmd.box.y);
-      sprite.setColor(sf::Color(cmd.col.r, cmd.col.g, cmd.col.b, 255));
+      if (!cmd.is_color)
+        sprite.setColor(sf::Color(cmd.col.r, cmd.col.g, cmd.col.b, 255));
+      else
+        sprite.setColor(sf::Color(255, 255, 255, 255));
       _window.draw(sprite, sf::RenderStates(sf::BlendAlpha));
     }
   };

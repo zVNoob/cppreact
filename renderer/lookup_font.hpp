@@ -7,23 +7,24 @@
 #include <string>
 #include <vector>
 
-#if defined(__linux__)
+#if defined(CPPREACT_HAS_FONTCONFIG)
 #include <fontconfig/fontconfig.h>
 #endif
 
 namespace cppreact {
     /** @brief Look up font files on the system matching a given family name
      *
-     * Uses fontconfig on Linux.  First pass collects exact family-name matches
-     * from system and application font sets.  Second pass uses FcFontSort for
-     * fallback fonts (emoji, script fallbacks, etc.).  On non-Linux platforms
-     * the vector is returned empty.
+     * Uses fontconfig on Linux (requires CPPREACT_HAS_FONTCONFIG).
+     * First pass collects exact family-name matches from system and
+     * application font sets.  Second pass uses FcFontSort for fallback
+     * fonts (emoji, script fallbacks, etc.).  When no font-lookup
+     * mechanism is available the vector is returned empty.
      * @param family_name Name of the font family to look up
      * @return Unique list of file paths for matching font files */
     inline std::vector<std::filesystem::path> lookup_font(const std::string& family_name) {
       std::vector<std::filesystem::path> result;
 
-#if defined(__linux__)
+#if defined(CPPREACT_HAS_FONTCONFIG)
 
       // pass 1: all variants matching exact family name (Bold, Italic, etc.)
       {

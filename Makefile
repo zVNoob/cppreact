@@ -1,4 +1,4 @@
-CFLAGS = -g -std=c++20 -MMD -I.
+CFLAGS = -g -std=c++20 -MMD -I. -DCPPREACT_HAS_FONTCONFIG
 
 test: tests/test
 	./tests/test
